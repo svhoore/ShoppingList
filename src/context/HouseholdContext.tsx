@@ -103,9 +103,8 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
       // Check if this household has members and user is allowed
       const data = snap.data();
       const members: string[] = data.members || [];
-      if (members.length > 0 && !members.includes(user.uid)) {
-        // Not a member yet — add them (this allows the household owner to share the ID)
-        // The Firestore rules will also enforce this on write
+      if (!members.includes(user.uid)) {
+        // Add user to the members list (Firestore rules allow this join operation)
         await updateDoc(ref, { members: arrayUnion(user.uid) });
       }
       localStorage.setItem(STORAGE_KEY, id);

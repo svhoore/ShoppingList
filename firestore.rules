@@ -2,14 +2,24 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /households/{householdId} {
-      // Allow creating a new household if authenticated
+      // Any authenticated user can read (household ID acts as shared secret)
+      allow read: if request.auth != null;
+
+      // Allow creating a new household if authenticated and user is in members
       allow create: if request.auth != null
         && request.resource.data.members is list
         && request.auth.uid in request.resource.data.members;
 
-      // Allow read/update only if the authenticated user is in the members array
-      allow read, update: if request.auth != null
-        && request.auth.uid in resource.data.members;
+      // Allow update only if the user is already a member,
+      // OR if they are adding themselves to the members array (joining)
+      allow update: if request.auth != null
+        && (
+          request.auth.uid in resource.data.members
+          || (
+            request.auth.uid in request.resource.data.members
+            && request.resource.data.lists == resource.data.lists
+          )
+        );
 
       // Disallow delete entirely (protect data)
       allow delete: if false;
