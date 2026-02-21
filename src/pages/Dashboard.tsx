@@ -345,12 +345,10 @@ export default function Dashboard() {
                           {list.icon || '📝'}
                         </div>
                         <div className="min-w-0">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <h2 className="font-semibold text-ios-text text-[15px] truncate">{list.listName}</h2>
-                            {list.category && (
-                              <span className="text-xs text-ios-secondary truncate">· {list.category}</span>
-                            )}
-                          </div>
+                          <h2 className="font-semibold text-ios-text text-[15px] truncate">{list.listName}</h2>
+                          {list.category && (
+                            <p className="text-xs text-ios-secondary truncate">{list.category}</p>
+                          )}
                         </div>
                       </div>
 
