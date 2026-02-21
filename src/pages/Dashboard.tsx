@@ -1,12 +1,14 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useHouseholdContext } from '../context/HouseholdContext';
+import { useAuth } from '../context/AuthContext';
 import { useHousehold, LIST_CATEGORIES, type ListCategory } from '../hooks/useHousehold';
 import ConfirmDialog from '../components/ConfirmDialog';
 import IconPicker from '../components/IconPicker';
 
 export default function Dashboard() {
   const { householdId, leaveHousehold } = useHouseholdContext();
+  const { user, signOut } = useAuth();
   const { data, loading, addList, deleteList, renameList, setListIcon, setListCategory } = useHousehold(householdId);
   const navigate = useNavigate();
 
@@ -72,14 +74,24 @@ export default function Dashboard() {
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-ios-text">Our Shopping List</h1>
-            <p className="text-xs text-ios-secondary">{householdId}</p>
+            <p className="text-xs text-ios-secondary">
+              {householdId} · {user?.displayName?.split(' ')[0] || user?.email}
+            </p>
           </div>
-          <button
-            onClick={() => setShowLeave(true)}
-            className="text-xs text-ios-red px-3 py-1.5 rounded-lg bg-ios-red/10 active:bg-ios-red/20 transition-colors font-medium"
-          >
-            Leave
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={signOut}
+              className="text-xs text-ios-secondary px-3 py-1.5 rounded-lg bg-gray-100 active:bg-gray-200 transition-colors font-medium"
+            >
+              Sign out
+            </button>
+            <button
+              onClick={() => setShowLeave(true)}
+              className="text-xs text-ios-red px-3 py-1.5 rounded-lg bg-ios-red/10 active:bg-ios-red/20 transition-colors font-medium"
+            >
+              Leave
+            </button>
+          </div>
         </div>
       </div>
 

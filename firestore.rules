@@ -1,9 +1,18 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Only the households collection is accessible
     match /households/{householdId} {
-      allow read, write: if true;
+      // Allow creating a new household if authenticated
+      allow create: if request.auth != null
+        && request.resource.data.members is list
+        && request.auth.uid in request.resource.data.members;
+
+      // Allow read/update only if the authenticated user is in the members array
+      allow read, update: if request.auth != null
+        && request.auth.uid in resource.data.members;
+
+      // Disallow delete entirely (protect data)
+      allow delete: if false;
     }
     // Deny everything else
     match /{document=**} {

@@ -6,8 +6,9 @@ import {
   useCallback,
   type ReactNode,
 } from 'react';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { useAuth } from './AuthContext';
 
 interface HouseholdContextValue {
   householdId: string | null;
@@ -33,6 +34,7 @@ function slugify(input: string): string {
 }
 
 export function HouseholdProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const [householdId, setHouseholdId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +54,10 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
       setError('Household ID must be at least 3 characters');
       return false;
     }
+    if (!user) {
+      setError('You must be signed in to create a household');
+      return false;
+    }
     setError(null);
     setLoading(true);
     try {
@@ -62,7 +68,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
         setLoading(false);
         return false;
       }
-      await setDoc(ref, { lists: [] });
+      await setDoc(ref, { lists: [], members: [user.uid] });
       localStorage.setItem(STORAGE_KEY, id);
       setHouseholdId(id);
       setLoading(false);
@@ -72,12 +78,16 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return false;
     }
-  }, []);
+  }, [user]);
 
   const joinHousehold = useCallback(async (rawId: string): Promise<boolean> => {
     const id = slugify(rawId);
     if (!id || id.length < 3) {
       setError('Household ID must be at least 3 characters');
+      return false;
+    }
+    if (!user) {
+      setError('You must be signed in to join a household');
       return false;
     }
     setError(null);
@@ -90,6 +100,14 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
         setLoading(false);
         return false;
       }
+      // Check if this household has members and user is allowed
+      const data = snap.data();
+      const members: string[] = data.members || [];
+      if (members.length > 0 && !members.includes(user.uid)) {
+        // Not a member yet — add them (this allows the household owner to share the ID)
+        // The Firestore rules will also enforce this on write
+        await updateDoc(ref, { members: arrayUnion(user.uid) });
+      }
       localStorage.setItem(STORAGE_KEY, id);
       setHouseholdId(id);
       setLoading(false);
@@ -99,7 +117,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return false;
     }
-  }, []);
+  }, [user]);
 
   const leaveHousehold = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);

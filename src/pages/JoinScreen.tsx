@@ -1,8 +1,10 @@
 import { useState, type FormEvent } from 'react';
 import { useHouseholdContext, slugify } from '../context/HouseholdContext';
+import { useAuth } from '../context/AuthContext';
 
 export default function JoinScreen() {
   const { createHousehold, joinHousehold, error, loading } = useHouseholdContext();
+  const { user, signOut } = useAuth();
   const [input, setInput] = useState('');
   const [mode, setMode] = useState<'idle' | 'create' | 'join'>('idle');
 
@@ -80,7 +82,13 @@ export default function JoinScreen() {
         </div>
 
         <p className="text-center text-xs text-ios-secondary mt-6">
-          No account needed. Just share the ID with your household.
+          Signed in as {user?.email}
+          <button
+            onClick={signOut}
+            className="ml-2 text-ios-red font-medium"
+          >
+            Sign out
+          </button>
         </p>
       </div>
     </div>
