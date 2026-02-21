@@ -21,7 +21,7 @@ export interface ShoppingItem {
   createdAt: number;
 }
 
-export const LIST_CATEGORIES = [
+export const DEFAULT_CATEGORIES = [
   'Groceries',
   'Household',
   'Health & Beauty',
@@ -32,12 +32,13 @@ export const LIST_CATEGORIES = [
   'Other',
 ] as const;
 
-export type ListCategory = (typeof LIST_CATEGORIES)[number];
+/** Union of built-in + any custom string category */
+export type ListCategory = (typeof DEFAULT_CATEGORIES)[number] | (string & {});
 
 export interface ShoppingList {
   listName: string;
   icon: string;
-  category: ListCategory;
+  category: string;
   items: ShoppingItem[];
 }
 
@@ -47,6 +48,7 @@ export interface HouseholdData {
   members: string[];
   admins: string[];
   memberInfo: Record<string, MemberInfo>;
+  customCategories?: string[];
 }
 
 /** Sort: active items first (preserving order), then completed (by createdAt) — delegated to utils */
@@ -82,9 +84,10 @@ export function useHousehold(householdId: string | null) {
             members: raw.members || [],
             admins: raw.admins || [],
             memberInfo: raw.memberInfo || {},
+            customCategories: raw.customCategories || [],
           });
         } else {
-          setData({ name: '', lists: [], members: [], admins: [], memberInfo: {} });
+          setData({ name: '', lists: [], members: [], admins: [], memberInfo: {}, customCategories: [] });
         }
         setLoading(false);
       },
@@ -167,7 +170,7 @@ export function useHousehold(householdId: string | null) {
   // ---- List operations ----
 
   const addList = useCallback(
-    async (name: string, icon = '📝', category: ListCategory = 'Other') => {
+    async (name: string, icon = '📝', category: string = 'Other') => {
       const lists = await getLists();
       if (lists.some((l) => l.listName.toLowerCase() === name.toLowerCase())) return;
       lists.push({ listName: name.trim(), icon, category, items: [] });
@@ -256,6 +259,34 @@ export function useHousehold(householdId: string | null) {
     [getRef, getLists],
   );
 
+  const addCategory = useCallback(
+    async (categoryName: string) => {
+      const trimmed = categoryName.trim();
+      if (!trimmed) return;
+      try {
+        setError(null);
+        await updateDoc(getRef(), { customCategories: arrayUnion(trimmed) });
+      } catch (e) {
+        console.error('Failed to add category', e);
+        setError('Failed to add category');
+      }
+    },
+    [getRef],
+  );
+
+  const removeCategory = useCallback(
+    async (categoryName: string) => {
+      try {
+        setError(null);
+        await updateDoc(getRef(), { customCategories: arrayRemove(categoryName) });
+      } catch (e) {
+        console.error('Failed to remove category', e);
+        setError('Failed to remove category');
+      }
+    },
+    [getRef],
+  );
+
   const toggleBonus = useCallback(
     (listName: string, itemId: string) =>
       updateLists((lists) => {
@@ -288,7 +319,7 @@ export function useHousehold(householdId: string | null) {
   );
 
   const setListCategory = useCallback(
-    (listName: string, category: ListCategory) =>
+    (listName: string, category: string) =>
       updateLists((lists) => {
         const list = lists.find((l) => l.listName === listName);
         if (!list) return false;
@@ -352,6 +383,8 @@ export function useHousehold(householdId: string | null) {
     activeCount,
     setListIcon,
     setListCategory,
+    addCategory,
+    removeCategory,
     toggleBonus,
     reorderLists,
     reorderItems,

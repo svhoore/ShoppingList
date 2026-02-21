@@ -2,9 +2,10 @@ import { useState, useRef, useCallback, useEffect, useMemo, type FormEvent } fro
 import { useNavigate } from 'react-router-dom';
 import { useHouseholdContext } from '../context/HouseholdContext';
 import { useAuth } from '../context/AuthContext';
-import { useHousehold, LIST_CATEGORIES, type ListCategory } from '../hooks/useHousehold';
+import { useHousehold, DEFAULT_CATEGORIES } from '../hooks/useHousehold';
 import ConfirmDialog from '../components/ConfirmDialog';
 import IconPicker from '../components/IconPicker';
+import CategoryPicker from '../components/CategoryPicker';
 import SettingsModal from '../components/SettingsModal';
 import HouseholdSwitcher from '../components/HouseholdSwitcher';
 import { IconChevronDown, IconShare, IconCheck, IconSettings, IconPlus, IconEdit, IconTrash, IconDragHandle } from '../components/Icons';
@@ -14,23 +15,24 @@ export default function Dashboard() {
   const { user, signOut } = useAuth();
   const {
     data, loading, error, addList, deleteList, renameList, setListIcon, setListCategory,
-    reorderLists, renameHousehold, promoteToAdmin, demoteFromAdmin, removeMember,
+    reorderLists, renameHousehold, promoteToAdmin, demoteFromAdmin, removeMember, addCategory,
   } = useHousehold(householdId);
   const navigate = useNavigate();
 
   const [showAdd, setShowAdd] = useState(false);
   const [newListName, setNewListName] = useState('');
   const [newListIcon, setNewListIcon] = useState('📝');
-  const [newListCategory, setNewListCategory] = useState<ListCategory>('Other');
+  const [newListCategory, setNewListCategory] = useState('Other');
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [renameIcon, setRenameIcon] = useState('📝');
-  const [renameCategory, setRenameCategory] = useState<ListCategory>('Other');
+  const [renameCategory, setRenameCategory] = useState('Other');
   const [copied, setCopied] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showSwitcher, setShowSwitcher] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
 
   const isAdmin = useMemo(() => !!(user && data?.admins?.includes(user.uid)), [user, data?.admins]);
   const memberCount = data?.members?.length ?? 0;
@@ -124,13 +126,30 @@ export default function Dashboard() {
   }, [dragIndex, handleDragMove, handleDragEnd]);
 
   const displayLists = useMemo(() => {
-    const src = data?.lists ?? [];
+    let src = data?.lists ?? [];
+    if (categoryFilter) {
+      src = src.filter((l) => l.category === categoryFilter);
+    }
     if (dragIndex === null || overIndex === null || dragIndex === overIndex) return src;
     const items = [...src];
     const [moved] = items.splice(dragIndex, 1);
     items.splice(overIndex, 0, moved);
     return items;
-  }, [data?.lists, dragIndex, overIndex]);
+  }, [data?.lists, dragIndex, overIndex, categoryFilter]);
+
+  const allCategories = useMemo(() => {
+    const custom = data?.customCategories ?? [];
+    return [
+      ...DEFAULT_CATEGORIES,
+      ...custom.filter((c) => !(DEFAULT_CATEGORIES as readonly string[]).includes(c)),
+    ];
+  }, [data?.customCategories]);
+
+  /** Categories that actually have lists assigned */
+  const usedCategories = useMemo(() => {
+    const cats = new Set((data?.lists ?? []).map((l) => l.category || 'Other'));
+    return allCategories.filter((c) => cats.has(c));
+  }, [data?.lists, allCategories]);
 
   async function handleAddList(e: FormEvent) {
     e.preventDefault();
@@ -226,6 +245,37 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Category Filter */}
+      <div className="max-w-lg mx-auto px-4 pt-4 pb-0">
+        {usedCategories.length > 1 && (
+          <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
+            <button
+              onClick={() => setCategoryFilter(null)}
+              className={`px-3 py-1.5 rounded-lg text-[13px] font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
+                categoryFilter === null
+                  ? 'bg-ios-blue text-white'
+                  : 'bg-white text-ios-secondary active:bg-gray-100 shadow-sm'
+              }`}
+            >
+              All
+            </button>
+            {usedCategories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setCategoryFilter(categoryFilter === cat ? null : cat)}
+                className={`px-3 py-1.5 rounded-lg text-[13px] font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
+                  categoryFilter === cat
+                    ? 'bg-ios-blue text-white'
+                    : 'bg-white text-ios-secondary active:bg-gray-100 shadow-sm'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Lists */}
       <div className="max-w-lg mx-auto px-4 py-4 pb-24">
         {lists.length === 0 ? (
@@ -285,7 +335,7 @@ export default function Dashboard() {
                             setRenameTarget(list.listName);
                             setRenameValue(list.listName);
                             setRenameIcon(list.icon || '📝');
-                            setRenameCategory((list.category as ListCategory) || 'Other');
+                          setRenameCategory(list.category || 'Other');
                           }}
                           className="p-2 rounded-lg text-ios-secondary active:bg-gray-100 transition-colors"
                           title="Rename"
@@ -337,15 +387,15 @@ export default function Dashboard() {
                 className="flex-1 px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[16px] placeholder:text-ios-secondary/50 focus:outline-none focus:ring-2 focus:ring-ios-blue/30"
               />
             </div>
-            <select
-              value={newListCategory}
-              onChange={(e) => setNewListCategory(e.target.value as ListCategory)}
-              className="w-full mt-3 px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[15px] focus:outline-none focus:ring-2 focus:ring-ios-blue/30 appearance-none"
-            >
-              {LIST_CATEGORIES.map((cat) => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
+            <div className="mt-3">
+              <label className="block text-xs font-medium text-ios-secondary uppercase tracking-wide mb-2">Category</label>
+              <CategoryPicker
+                value={newListCategory}
+                onChange={(cat) => setNewListCategory(cat)}
+                customCategories={data?.customCategories}
+                onAddCategory={addCategory}
+              />
+            </div>
             <div className="flex gap-3 mt-4">
               <button
                 type="button"
@@ -385,15 +435,15 @@ export default function Dashboard() {
                 className="flex-1 px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[16px] focus:outline-none focus:ring-2 focus:ring-ios-blue/30"
               />
             </div>
-            <select
-              value={renameCategory}
-              onChange={(e) => setRenameCategory(e.target.value as ListCategory)}
-              className="w-full mt-3 px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[15px] focus:outline-none focus:ring-2 focus:ring-ios-blue/30 appearance-none"
-            >
-              {LIST_CATEGORIES.map((cat) => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
+            <div className="mt-3">
+              <label className="block text-xs font-medium text-ios-secondary uppercase tracking-wide mb-2">Category</label>
+              <CategoryPicker
+                value={renameCategory}
+                onChange={(cat) => setRenameCategory(cat)}
+                customCategories={data?.customCategories}
+                onAddCategory={addCategory}
+              />
+            </div>
             <div className="flex gap-3 mt-4">
               <button
                 type="button"
