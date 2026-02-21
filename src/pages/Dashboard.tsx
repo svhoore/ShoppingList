@@ -11,7 +11,7 @@ import HouseholdSwitcher from '../components/HouseholdSwitcher';
 import { IconSwitch, IconShare, IconCheck, IconSettings, IconPlus, IconEdit, IconTrash, IconDragHandle } from '../components/Icons';
 
 export default function Dashboard() {
-  const { householdId, userHouseholds, leaveHousehold, switchHousehold } = useHouseholdContext();
+  const { householdId, userHouseholds, leaveHousehold, switchHousehold, clearHousehold } = useHouseholdContext();
   const { user, signOut } = useAuth();
   const {
     data, loading, error, addList, deleteList, renameList, setListIcon, setListCategory,
@@ -494,7 +494,7 @@ export default function Dashboard() {
           householdId={householdId}
           userHouseholds={userHouseholds}
           switchHousehold={switchHousehold}
-          onCreateNew={leaveHousehold}
+          onCreateNew={clearHousehold}
           onClose={() => setShowSwitcher(false)}
         />
       )}

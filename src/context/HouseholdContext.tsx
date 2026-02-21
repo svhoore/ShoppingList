@@ -41,6 +41,7 @@ interface HouseholdContextValue {
   createHousehold: (name: string) => Promise<boolean>;
   joinHousehold: (code: string) => Promise<boolean>;
   switchHousehold: (id: string) => void;
+  clearHousehold: () => void;
   leaveHousehold: () => Promise<void>;
   lookupHousehold: (code: string) => Promise<{ name: string } | null>;
 }
@@ -197,6 +198,13 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
     setError(null);
   }, []);
 
+  // Clear local selection without leaving the Firestore household
+  const clearHousehold = useCallback(() => {
+    localStorage.removeItem(STORAGE_KEY);
+    setHouseholdId(null);
+    setError(null);
+  }, []);
+
   const leaveHousehold = useCallback(async () => {
     if (householdId && user) {
       try {
@@ -239,6 +247,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
         createHousehold,
         joinHousehold,
         switchHousehold,
+        clearHousehold,
         leaveHousehold,
         lookupHousehold,
       }}
