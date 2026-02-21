@@ -204,15 +204,13 @@ export default function Dashboard() {
       <div className="bg-white/80 backdrop-blur-xl sticky top-0 z-10 border-b border-gray-200/60">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0 flex-1">
-            {userHouseholds.length > 1 && (
-              <button
-                onClick={() => setShowSwitcher(true)}
-                className="p-1.5 rounded-lg text-ios-secondary active:bg-gray-100 transition-colors flex-shrink-0"
-                title="Switch household"
-              >
-                <IconChevronDown />
-              </button>
-            )}
+            <button
+              onClick={() => setShowSwitcher(true)}
+              className="p-1.5 rounded-lg text-ios-secondary active:bg-gray-100 transition-colors flex-shrink-0"
+              title="Switch or create household"
+            >
+              <IconChevronDown />
+            </button>
             <div className="min-w-0">
               <h1 className="text-xl font-bold text-ios-text truncate">{data?.name || 'Our Shopping List'}</h1>
               <p className="text-xs text-ios-secondary">
