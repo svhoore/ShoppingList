@@ -182,8 +182,39 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-dvh bg-ios-bg flex items-center justify-center">
-        <div className="w-8 h-8 border-3 border-ios-blue/30 border-t-ios-blue rounded-full animate-spin" />
+      <div className="min-h-dvh bg-ios-bg">
+        <div className="bg-white/80 backdrop-blur-xl sticky top-0 z-10 border-b border-gray-200/60">
+          <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <div className="p-3 rounded-lg bg-ios-bg w-11 h-11 flex items-center justify-center flex-shrink-0">
+                <div className="w-7 h-7 rounded-lg bg-gray-200/70" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="h-5 w-44 bg-gray-200/70 rounded-md" />
+                <div className="h-3 w-28 bg-gray-200/60 rounded-md mt-2" />
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <div className="w-11 h-11 rounded-lg bg-gray-200/60" />
+            </div>
+          </div>
+        </div>
+        <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="bg-white rounded-2xl p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="w-10 h-10 bg-gray-200/60 rounded-xl" />
+                  <div className="min-w-0 flex-1">
+                    <div className="h-4 w-40 bg-gray-200/70 rounded-md" />
+                    <div className="h-3 w-24 bg-gray-200/60 rounded-md mt-2" />
+                  </div>
+                </div>
+                <div className="h-5 w-16 bg-gray-200/60 rounded-full" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -198,7 +229,7 @@ export default function Dashboard() {
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <button
               onClick={() => setShowSwitcher(true)}
-              className="p-1.5 rounded-lg text-ios-secondary active:bg-gray-100 transition-colors flex-shrink-0"
+              className="p-3 rounded-lg text-ios-secondary active:bg-gray-100 transition-colors flex-shrink-0"
               title="Switch or create household"
             >
               {data?.icon ? (
@@ -230,7 +261,7 @@ export default function Dashboard() {
             )}
             <button
               onClick={() => setShowSettings(true)}
-              className="p-2 rounded-lg text-ios-secondary active:bg-gray-100 transition-colors"
+              className="p-3 rounded-lg text-ios-secondary active:bg-gray-100 transition-colors"
               title="Household settings"
             >
               <IconSettings />
@@ -268,6 +299,11 @@ export default function Dashboard() {
             ))}
           </div>
         )}
+        {lists.length > 0 && usedCategories.length <= 1 && (
+          <p className="text-xs text-ios-secondary mt-1">
+            Assign categories to lists to enable filtering.
+          </p>
+        )}
       </div>
 
       {/* Lists */}
@@ -296,7 +332,7 @@ export default function Dashboard() {
                     className="bg-white rounded-2xl p-4 active:scale-[0.98] transition-transform cursor-pointer shadow-sm"
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
                         {/* Drag Handle */}
                         <div
                           onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); handleDragStart(originalIndex, e.clientY); }}
@@ -308,23 +344,25 @@ export default function Dashboard() {
                         <div className="w-10 h-10 bg-ios-blue/10 rounded-xl flex items-center justify-center text-xl">
                           {list.icon || '📝'}
                         </div>
-                        <div>
-                          <h2 className="font-semibold text-ios-text text-[15px]">{list.listName}</h2>
-                          <p className="text-xs text-ios-secondary">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <h2 className="font-semibold text-ios-text text-[15px] truncate">{list.listName}</h2>
                             {list.category && (
-                              <><span className="text-ios-blue/70 font-medium">{list.category}</span><span className="mx-1">·</span></>
+                              <span className="text-xs text-ios-secondary truncate">· {list.category}</span>
                             )}
-                            {total === 0
-                              ? 'No items'
-                              : remaining === 0
-                                ? `All ${total} done ✓`
-                                : `${remaining} item${remaining !== 1 ? 's' : ''} left`}
-                          </p>
+                          </div>
                         </div>
                       </div>
 
-                      {/* Action buttons */}
-                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      {/* Status badge + action buttons */}
+                      <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <span className="text-[11px] font-semibold px-2 py-1 rounded-full bg-ios-bg text-ios-secondary whitespace-nowrap">
+                          {total === 0
+                            ? 'No items'
+                            : remaining === 0
+                              ? `Done ${total} ✓`
+                              : `${remaining} left`}
+                        </span>
                         <button
                           onClick={() => {
                             setRenameTarget(list.listName);
@@ -332,14 +370,14 @@ export default function Dashboard() {
                             setRenameIcon(list.icon || '📝');
                           setRenameCategory(list.category || '');
                           }}
-                          className="p-2 rounded-lg text-ios-secondary active:bg-gray-100 transition-colors"
+                          className="p-3 rounded-lg text-ios-secondary active:bg-gray-100 transition-colors"
                           title="Rename"
                         >
                           <IconEdit />
                         </button>
                         <button
                           onClick={() => setDeleteTarget(list.listName)}
-                          className="p-2 rounded-lg text-ios-red active:bg-red-50 transition-colors"
+                          className="p-3 rounded-lg text-ios-red active:bg-red-50 transition-colors"
                           title="Delete"
                         >
                           <IconTrash />
@@ -383,6 +421,12 @@ export default function Dashboard() {
                 className="flex-1 px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[16px] placeholder:text-ios-secondary/50 focus:outline-none focus:ring-2 focus:ring-ios-blue/30"
               />
             </div>
+            <div className="mt-2 text-xs text-ios-secondary flex items-center gap-2">
+              <span className="text-base leading-none">{newListIcon}</span>
+              <span className="truncate">
+                {(newListName.trim() || 'List name')}{newListCategory ? ` · ${newListCategory}` : ''}
+              </span>
+            </div>
             <div className="mt-3">
               <label className="block text-xs font-medium text-ios-secondary uppercase tracking-wide mb-2">Category</label>
               <CategoryPicker
@@ -396,14 +440,14 @@ export default function Dashboard() {
               <button
                 type="button"
                 onClick={() => setShowAdd(false)}
-                className="flex-1 py-2.5 rounded-xl text-ios-blue font-medium bg-ios-bg active:bg-gray-200 transition-colors"
+                className="flex-1 py-2.5 rounded-xl text-ios-blue font-medium bg-ios-bg active:bg-gray-200 transition-all active:scale-[0.98]"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={!newListName.trim() || submitting}
-                className="flex-1 py-2.5 rounded-xl bg-ios-blue text-white font-semibold disabled:opacity-40 active:opacity-80 transition-opacity"
+                className="flex-1 py-2.5 rounded-xl bg-ios-blue text-white font-semibold disabled:opacity-40 active:scale-[0.98] transition-transform"
               >
                 {submitting ? 'Creating…' : 'Create'}
               </button>
@@ -432,6 +476,12 @@ export default function Dashboard() {
                 className="flex-1 px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[16px] focus:outline-none focus:ring-2 focus:ring-ios-blue/30"
               />
             </div>
+            <div className="mt-2 text-xs text-ios-secondary flex items-center gap-2">
+              <span className="text-base leading-none">{renameIcon}</span>
+              <span className="truncate">
+                {(renameValue.trim() || 'List name')}{renameCategory ? ` · ${renameCategory}` : ''}
+              </span>
+            </div>
             <div className="mt-3">
               <label className="block text-xs font-medium text-ios-secondary uppercase tracking-wide mb-2">Category</label>
               <CategoryPicker
@@ -445,14 +495,14 @@ export default function Dashboard() {
               <button
                 type="button"
                 onClick={() => setRenameTarget(null)}
-                className="flex-1 py-2.5 rounded-xl text-ios-blue font-medium bg-ios-bg active:bg-gray-200 transition-colors"
+                className="flex-1 py-2.5 rounded-xl text-ios-blue font-medium bg-ios-bg active:bg-gray-200 transition-all active:scale-[0.98]"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={!renameValue.trim() || submitting}
-                className="flex-1 py-2.5 rounded-xl bg-ios-blue text-white font-semibold disabled:opacity-40 active:opacity-80 transition-opacity"
+                className="flex-1 py-2.5 rounded-xl bg-ios-blue text-white font-semibold disabled:opacity-40 active:scale-[0.98] transition-transform"
               >
                 {submitting ? 'Saving…' : 'Save'}
               </button>

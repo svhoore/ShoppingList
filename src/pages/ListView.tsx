@@ -147,8 +147,31 @@ export default function ListView() {
 
   if (loading) {
     return (
-      <div className="min-h-dvh bg-ios-bg flex items-center justify-center">
-        <div className="w-8 h-8 border-3 border-ios-blue/30 border-t-ios-blue rounded-full animate-spin" />
+      <div className="min-h-dvh bg-ios-bg flex flex-col">
+        <div className="bg-white/80 backdrop-blur-xl sticky top-0 z-10 border-b border-gray-200/60">
+          <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="p-3 -ml-1 rounded-lg bg-ios-bg w-11 h-11 flex items-center justify-center">
+                <div className="w-6 h-6 bg-gray-200/70 rounded-md" />
+              </div>
+              <div className="h-5 w-40 bg-gray-200/70 rounded-md" />
+            </div>
+            <div className="w-11 h-11 rounded-lg bg-gray-200/60" />
+          </div>
+        </div>
+        <div className="flex-1 max-w-lg mx-auto w-full px-4 pt-4 pb-8">
+          <div className="bg-white rounded-2xl overflow-hidden shadow-sm divide-y divide-gray-100">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-2 px-4 py-3">
+                <div className="w-[22px] h-[22px] rounded-full bg-gray-200/60 flex-shrink-0" />
+                <div className="h-4 bg-gray-200/70 rounded-md flex-1" />
+              </div>
+            ))}
+            <div className="px-4 py-2.5 bg-ios-bg">
+              <div className="h-4 bg-gray-200/60 rounded-md w-40" />
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -172,7 +195,7 @@ export default function ListView() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate('/')}
-              className="p-1.5 -ml-1 text-ios-blue active:opacity-60 transition-opacity rounded-lg"
+              className="p-3 -ml-1 text-ios-blue active:bg-ios-blue/10 transition-colors rounded-lg"
               aria-label="Home"
             >
               <IconHome />
@@ -183,7 +206,7 @@ export default function ListView() {
           <div className="relative">
             <button
               onClick={() => setShowOptions(!showOptions)}
-              className="p-2 rounded-lg text-ios-secondary active:bg-gray-100 transition-colors"
+              className="p-3 rounded-lg text-ios-secondary active:bg-gray-100 transition-colors"
             >
               <IconMoreVertical />
             </button>
@@ -251,7 +274,7 @@ export default function ListView() {
           })}
 
           {/* Inline add — sits below last item inside the same card */}
-          <div className="flex items-center gap-3 px-4 py-2.5">
+          <div className="flex items-center gap-3 px-4 py-2.5 bg-ios-bg border-t border-gray-100">
             <div className="w-[22px] h-[22px] rounded-full border-2 border-gray-200 flex-shrink-0" />
             <input
               ref={newItemRef}
@@ -327,14 +350,14 @@ export default function ListView() {
               <button
                 type="button"
                 onClick={() => setShowRename(false)}
-                className="flex-1 py-2.5 rounded-xl text-ios-blue font-medium bg-ios-bg active:bg-gray-200 transition-colors"
+                className="flex-1 py-2.5 rounded-xl text-ios-blue font-medium bg-ios-bg active:bg-gray-200 transition-all active:scale-[0.98]"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={!renameValue.trim()}
-                className="flex-1 py-2.5 rounded-xl bg-ios-blue text-white font-semibold disabled:opacity-40 active:opacity-80 transition-opacity"
+                className="flex-1 py-2.5 rounded-xl bg-ios-blue text-white font-semibold disabled:opacity-40 active:scale-[0.98] transition-transform"
               >
                 Save
               </button>

@@ -29,6 +29,7 @@ export default function SettingsModal({
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(data?.name || '');
   const [copied, setCopied] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<string | null>(null);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
 
@@ -53,7 +54,15 @@ export default function SettingsModal({
     if (nameInput.trim()) {
       await renameHousehold(nameInput);
       setEditingName(false);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
     }
+  }
+
+  async function handleSaveHouseholdIcon(dataUrl: string | null) {
+    await setHouseholdIcon(dataUrl);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
   }
 
   async function handleRemoveMember() {
@@ -72,10 +81,13 @@ export default function SettingsModal({
           <div className="sticky top-0 bg-white rounded-t-2xl p-5 pb-3 border-b border-gray-100">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-ios-text">Household Settings</h3>
-              <button onClick={onClose} className="p-1 rounded-lg text-ios-secondary active:bg-gray-100">
+              <button onClick={onClose} className="p-3 rounded-lg text-ios-secondary active:bg-gray-100">
                 <IconX />
               </button>
             </div>
+            {saved && (
+              <p className="text-xs text-ios-green font-medium mt-2">Saved ✓</p>
+            )}
           </div>
 
           <div className="p-5 space-y-5">
@@ -120,7 +132,7 @@ export default function SettingsModal({
             {isAdmin && (
               <HouseholdIconPicker
                 currentIcon={data?.icon}
-                onSave={setHouseholdIcon}
+                onSave={handleSaveHouseholdIcon}
               />
             )}
 
@@ -136,7 +148,7 @@ export default function SettingsModal({
                   </div>
                   <button
                     onClick={handleShare}
-                    className="px-4 py-2.5 rounded-xl bg-ios-blue text-white text-sm font-medium flex-shrink-0"
+                    className="px-4 py-2.5 rounded-xl bg-ios-blue text-white text-sm font-medium flex-shrink-0 active:scale-[0.98] transition-transform"
                   >
                     {copied ? '✓' : 'Share'}
                   </button>
@@ -238,16 +250,16 @@ export default function SettingsModal({
             </div>
 
             {/* Actions */}
-            <div className="space-y-2 pt-2">
+            <div className="space-y-2 pt-4 border-t border-gray-100">
               <button
                 onClick={signOut}
-                className="w-full py-2.5 rounded-xl text-ios-secondary font-medium bg-ios-bg active:bg-gray-200 transition-colors text-[15px]"
+                className="w-full py-2.5 rounded-xl text-ios-secondary font-medium bg-ios-bg active:bg-gray-200 transition-all active:scale-[0.98] text-[15px]"
               >
                 Sign out
               </button>
               <button
                 onClick={() => setShowLeaveConfirm(true)}
-                className="w-full py-2.5 rounded-xl text-ios-red font-medium bg-ios-red/8 active:bg-ios-red/15 transition-colors text-[15px]"
+                className="w-full py-2.5 rounded-xl text-ios-red font-medium bg-ios-red/8 active:bg-ios-red/15 transition-all active:scale-[0.98] text-[15px]"
               >
                 Leave Household
               </button>
