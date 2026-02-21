@@ -3,6 +3,7 @@ interface ConfirmDialogProps {
   title: string;
   message: string;
   confirmLabel?: string;
+  confirmColor?: 'red' | 'blue';
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -12,6 +13,7 @@ export default function ConfirmDialog({
   title,
   message,
   confirmLabel = 'Delete',
+  confirmColor = 'red',
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -37,7 +39,9 @@ export default function ConfirmDialog({
           </button>
           <button
             onClick={onConfirm}
-            className="flex-1 py-3 text-[17px] text-ios-red font-semibold active:bg-gray-100 transition-colors"
+            className={`flex-1 py-3 text-[17px] font-semibold active:bg-gray-100 transition-colors ${
+              confirmColor === 'blue' ? 'text-ios-blue' : 'text-ios-red'
+            }`}
           >
             {confirmLabel}
           </button>

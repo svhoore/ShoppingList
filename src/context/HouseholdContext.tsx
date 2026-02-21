@@ -12,6 +12,8 @@ import {
   setDoc,
   updateDoc,
   arrayUnion,
+  arrayRemove,
+  deleteField,
   collection,
   query,
   where,
@@ -19,14 +21,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from './AuthContext';
-
-/* ---- Random invite code generator ---- */
-function generateCode(): string {
-  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-  const bytes = new Uint8Array(8);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => chars[b % chars.length]).join('');
-}
+import { generateInviteCode, normalizeInviteCode } from '../lib/utils';
 
 export interface HouseholdSummary {
   id: string;
@@ -46,7 +41,8 @@ interface HouseholdContextValue {
   createHousehold: (name: string) => Promise<boolean>;
   joinHousehold: (code: string) => Promise<boolean>;
   switchHousehold: (id: string) => void;
-  leaveHousehold: () => void;
+  leaveHousehold: () => Promise<void>;
+  lookupHousehold: (code: string) => Promise<{ name: string } | null>;
 }
 
 const HouseholdContext = createContext<HouseholdContextValue | null>(null);
@@ -107,7 +103,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
     setError(null);
     setLoading(true);
     try {
-      const code = generateCode();
+      const code = generateInviteCode();
       const ref = doc(db, 'households', code);
       await setDoc(ref, {
         name: trimmed,
@@ -134,7 +130,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const joinHousehold = useCallback(async (rawCode: string): Promise<boolean> => {
-    const code = rawCode.replace(/[-\s]/g, '').toUpperCase();
+    const code = normalizeInviteCode(rawCode);
     if (!code || code.length < 6) {
       setError('Enter a valid invite code');
       return false;
@@ -182,10 +178,36 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
     setError(null);
   }, []);
 
-  const leaveHousehold = useCallback(() => {
+  const leaveHousehold = useCallback(async () => {
+    if (householdId && user) {
+      try {
+        const ref = doc(db, 'households', householdId);
+        await updateDoc(ref, {
+          members: arrayRemove(user.uid),
+          admins: arrayRemove(user.uid),
+          [`memberInfo.${user.uid}`]: deleteField(),
+        });
+      } catch (e) {
+        console.error('Leave household error:', e);
+      }
+    }
     localStorage.removeItem(STORAGE_KEY);
     setHouseholdId(null);
     setError(null);
+  }, [householdId, user]);
+
+  const lookupHousehold = useCallback(async (rawCode: string): Promise<{ name: string } | null> => {
+    const code = normalizeInviteCode(rawCode);
+    try {
+      const ref = doc(db, 'households', code);
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        return { name: (snap.data().name as string) || code };
+      }
+      return null;
+    } catch {
+      return null;
+    }
   }, []);
 
   return (
@@ -199,6 +221,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
         joinHousehold,
         switchHousehold,
         leaveHousehold,
+        lookupHousehold,
       }}
     >
       {children}

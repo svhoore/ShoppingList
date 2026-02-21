@@ -2,22 +2,19 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { HouseholdProvider, useHouseholdContext } from './context/HouseholdContext';
 import UpdatePrompt from './components/UpdatePrompt';
+import { IconShoppingBag } from './components/Icons';
 import JoinScreen from './pages/JoinScreen';
 import Dashboard from './pages/Dashboard';
 import ListView from './pages/ListView';
 
 function SignInScreen() {
-  const { signInWithGoogle } = useAuth();
+  const { signInWithGoogle, authError } = useAuth();
 
   return (
     <div className="min-h-dvh bg-ios-bg flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-sm text-center">
         <div className="w-20 h-20 bg-ios-blue rounded-[22px] flex items-center justify-center mx-auto mb-4 shadow-lg">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" />
-            <line x1="3" y1="6" x2="21" y2="6" />
-            <path d="M16 10a4 4 0 01-8 0" />
-          </svg>
+          <IconShoppingBag className="text-white" />
         </div>
         <h1 className="text-2xl font-bold text-ios-text">Our Shopping List</h1>
         <p className="text-ios-secondary text-sm mt-1 mb-8">
@@ -35,6 +32,9 @@ function SignInScreen() {
           </svg>
           Sign in with Google
         </button>
+        {authError && (
+          <p className="text-center text-xs text-ios-red mt-4 font-medium">{authError}</p>
+        )}
       </div>
     </div>
   );

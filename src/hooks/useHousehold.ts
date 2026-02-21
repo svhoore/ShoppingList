@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { v4 as uuidv4 } from 'uuid';
+import { sortItems } from '../lib/utils';
 import type { MemberInfo } from '../context/HouseholdContext';
 
 export interface ShoppingItem {
@@ -47,16 +48,12 @@ export interface HouseholdData {
   memberInfo: Record<string, MemberInfo>;
 }
 
-/** Sort: active items first (preserving order), then completed (by createdAt) */
-function sortItems(items: ShoppingItem[]): ShoppingItem[] {
-  const active = items.filter((i) => !i.completed);
-  const done = items.filter((i) => i.completed).sort((a, b) => a.createdAt - b.createdAt);
-  return [...active, ...done];
-}
+/** Sort: active items first (preserving order), then completed (by createdAt) — delegated to utils */
 
 export function useHousehold(householdId: string | null) {
   const [data, setData] = useState<HouseholdData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Real-time listener
   useEffect(() => {
@@ -107,6 +104,28 @@ export function useHousehold(householdId: string | null) {
     const snap = await getDoc(getRef());
     return snap.exists() ? (snap.data() as HouseholdData).lists || [] : [];
   }, [getRef]);
+
+  /**
+   * Helper: read lists, apply a mutation, then write back.
+   * Race-condition note: we intentionally avoid Firestore transactions here
+   * because they fail when offline. For a household shopping list the
+   * last-writer-wins semantics of updateDoc are acceptable, and offline
+   * support is more important.
+   */
+  const updateLists = useCallback(
+    async (fn: (lists: ShoppingList[]) => boolean | void, errorMsg: string) => {
+      try {
+        setError(null);
+        const lists = await getLists();
+        if (fn(lists) === false) return;
+        await updateDoc(getRef(), { lists });
+      } catch (e) {
+        console.error(errorMsg, e);
+        setError(errorMsg);
+      }
+    },
+    [getRef, getLists],
+  );
 
   // ---- Household operations ----
 
@@ -246,60 +265,66 @@ export function useHousehold(householdId: string | null) {
   );
 
   const setListIcon = useCallback(
-    async (listName: string, icon: string) => {
-      const lists = await getLists();
-      const list = lists.find((l) => l.listName === listName);
-      if (list) {
+    (listName: string, icon: string) =>
+      updateLists((lists) => {
+        const list = lists.find((l) => l.listName === listName);
+        if (!list) return false;
         list.icon = icon;
-        await updateDoc(getRef(), { lists });
-      }
-    },
-    [getRef, getLists],
+      }, 'Failed to set icon'),
+    [updateLists],
   );
 
   const setListCategory = useCallback(
-    async (listName: string, category: ListCategory) => {
-      const lists = await getLists();
-      const list = lists.find((l) => l.listName === listName);
-      if (list) {
+    (listName: string, category: ListCategory) =>
+      updateLists((lists) => {
+        const list = lists.find((l) => l.listName === listName);
+        if (!list) return false;
         list.category = category;
-        await updateDoc(getRef(), { lists });
-      }
-    },
-    [getRef, getLists],
+      }, 'Failed to set category'),
+    [updateLists],
   );
 
   const reorderLists = useCallback(
-    async (fromIndex: number, toIndex: number) => {
-      const lists = await getLists();
-      if (fromIndex < 0 || fromIndex >= lists.length || toIndex < 0 || toIndex >= lists.length) return;
-      const [moved] = lists.splice(fromIndex, 1);
-      lists.splice(toIndex, 0, moved);
-      await updateDoc(getRef(), { lists });
-    },
-    [getRef, getLists],
+    (fromIndex: number, toIndex: number) =>
+      updateLists((lists) => {
+        if (fromIndex < 0 || fromIndex >= lists.length || toIndex < 0 || toIndex >= lists.length) return false;
+        const [moved] = lists.splice(fromIndex, 1);
+        lists.splice(toIndex, 0, moved);
+      }, 'Failed to reorder lists'),
+    [updateLists],
   );
 
   const reorderItems = useCallback(
-    async (listName: string, fromIndex: number, toIndex: number) => {
-      const lists = await getLists();
-      const list = lists.find((l) => l.listName === listName);
-      if (!list) return;
-      // Only reorder within active items
-      const active = list.items.filter((i) => !i.completed);
-      const done = list.items.filter((i) => i.completed);
-      if (fromIndex < 0 || fromIndex >= active.length || toIndex < 0 || toIndex >= active.length) return;
-      const [moved] = active.splice(fromIndex, 1);
-      active.splice(toIndex, 0, moved);
-      list.items = [...active, ...done];
-      await updateDoc(getRef(), { lists });
-    },
-    [getRef, getLists],
+    (listName: string, fromIndex: number, toIndex: number) =>
+      updateLists((lists) => {
+        const list = lists.find((l) => l.listName === listName);
+        if (!list) return false;
+        const active = list.items.filter((i) => !i.completed);
+        const done = list.items.filter((i) => i.completed);
+        if (fromIndex < 0 || fromIndex >= active.length || toIndex < 0 || toIndex >= active.length) return false;
+        const [moved] = active.splice(fromIndex, 1);
+        active.splice(toIndex, 0, moved);
+        list.items = [...active, ...done];
+      }, 'Failed to reorder items'),
+    [updateLists],
+  );
+
+  const clearCompleted = useCallback(
+    (listName: string) =>
+      updateLists((lists) => {
+        const list = lists.find((l) => l.listName === listName);
+        if (!list) return false;
+        const before = list.items.length;
+        list.items = list.items.filter((i) => !i.completed);
+        if (list.items.length === before) return false; // nothing to clear
+      }, 'Failed to clear completed items'),
+    [updateLists],
   );
 
   return {
     data,
     loading,
+    error,
     renameHousehold,
     promoteToAdmin,
     demoteFromAdmin,
@@ -316,5 +341,6 @@ export function useHousehold(householdId: string | null) {
     setListCategory,
     reorderLists,
     reorderItems,
+    clearCompleted,
   };
 }

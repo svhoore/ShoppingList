@@ -1,16 +1,19 @@
-import { useState, useRef, useCallback, useEffect, type FormEvent } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useHouseholdContext } from '../context/HouseholdContext';
 import { useAuth } from '../context/AuthContext';
 import { useHousehold, LIST_CATEGORIES, type ListCategory } from '../hooks/useHousehold';
 import ConfirmDialog from '../components/ConfirmDialog';
 import IconPicker from '../components/IconPicker';
+import SettingsModal from '../components/SettingsModal';
+import HouseholdSwitcher from '../components/HouseholdSwitcher';
+import { IconChevronDown, IconShare, IconCheck, IconSettings, IconPlus, IconEdit, IconTrash, IconDragHandle } from '../components/Icons';
 
 export default function Dashboard() {
   const { householdId, userHouseholds, leaveHousehold, switchHousehold } = useHouseholdContext();
   const { user, signOut } = useAuth();
   const {
-    data, loading, addList, deleteList, renameList, setListIcon, setListCategory,
+    data, loading, error, addList, deleteList, renameList, setListIcon, setListCategory,
     reorderLists, renameHousehold, promoteToAdmin, demoteFromAdmin, removeMember,
   } = useHousehold(householdId);
   const navigate = useNavigate();
@@ -24,20 +27,17 @@ export default function Dashboard() {
   const [renameValue, setRenameValue] = useState('');
   const [renameIcon, setRenameIcon] = useState('📝');
   const [renameCategory, setRenameCategory] = useState<ListCategory>('Other');
-  const [showLeave, setShowLeave] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [editingName, setEditingName] = useState(false);
-  const [nameInput, setNameInput] = useState('');
   const [showSwitcher, setShowSwitcher] = useState(false);
-  const [removeTarget, setRemoveTarget] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const isAdmin = !!(user && data?.admins?.includes(user.uid));
+  const isAdmin = useMemo(() => !!(user && data?.admins?.includes(user.uid)), [user, data?.admins]);
   const memberCount = data?.members?.length ?? 0;
-
-  const inviteLink = householdId
-    ? `${window.location.origin}/join/${householdId}`
-    : '';
+  const inviteLink = useMemo(
+    () => (householdId ? `${window.location.origin}/join/${householdId}` : ''),
+    [householdId],
+  );
 
   async function handleShare() {
     if (!householdId) return;
@@ -47,10 +47,7 @@ export default function Dashboard() {
       url: inviteLink,
     };
     if (navigator.share) {
-      try {
-        await navigator.share(shareData);
-        return;
-      } catch { /* cancelled */ }
+      try { await navigator.share(shareData); return; } catch { /* cancelled */ }
     }
     try {
       await navigator.clipboard.writeText(inviteLink);
@@ -66,21 +63,6 @@ export default function Dashboard() {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  async function handleSaveName(e: FormEvent) {
-    e.preventDefault();
-    if (nameInput.trim()) {
-      await renameHousehold(nameInput);
-      setEditingName(false);
-    }
-  }
-
-  async function handleRemoveMember() {
-    if (removeTarget) {
-      await removeMember(removeTarget);
-      setRemoveTarget(null);
-    }
-  }
-
   // ---- Drag-and-drop state for list reordering ----
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
@@ -94,7 +76,7 @@ export default function Dashboard() {
     startYRef.current = clientY;
     if (listContainerRef.current) {
       const rows = listContainerRef.current.querySelectorAll('[data-list-row]');
-      rowHeightsRef.current = Array.from(rows).map((r) => r.getBoundingClientRect().height + 12); // 12 = space-y-3 gap
+      rowHeightsRef.current = Array.from(rows).map((r) => r.getBoundingClientRect().height + 12);
     }
   }, []);
 
@@ -141,24 +123,25 @@ export default function Dashboard() {
     };
   }, [dragIndex, handleDragMove, handleDragEnd]);
 
-  // Compute display order during drag
-  const getDisplayLists = () => {
+  const displayLists = useMemo(() => {
     const src = data?.lists ?? [];
     if (dragIndex === null || overIndex === null || dragIndex === overIndex) return src;
     const items = [...src];
     const [moved] = items.splice(dragIndex, 1);
     items.splice(overIndex, 0, moved);
     return items;
-  };
+  }, [data?.lists, dragIndex, overIndex]);
 
   async function handleAddList(e: FormEvent) {
     e.preventDefault();
-    if (!newListName.trim()) return;
+    if (!newListName.trim() || submitting) return;
+    setSubmitting(true);
     await addList(newListName, newListIcon, newListCategory);
     setNewListName('');
     setNewListIcon('📝');
     setNewListCategory('Other');
     setShowAdd(false);
+    setSubmitting(false);
   }
 
   async function handleDeleteList() {
@@ -170,9 +153,9 @@ export default function Dashboard() {
 
   async function handleRenameList(e: FormEvent) {
     e.preventDefault();
-    if (renameTarget && renameValue.trim()) {
+    if (renameTarget && renameValue.trim() && !submitting) {
+      setSubmitting(true);
       await renameList(renameTarget, renameValue);
-      // Also update icon/category if they changed
       const list = data?.lists.find((l) => l.listName === renameTarget);
       if (list && list.icon !== renameIcon) {
         await setListIcon(renameValue.trim(), renameIcon);
@@ -182,6 +165,7 @@ export default function Dashboard() {
       }
       setRenameTarget(null);
       setRenameValue('');
+      setSubmitting(false);
     }
   }
 
@@ -194,7 +178,6 @@ export default function Dashboard() {
   }
 
   const lists = data?.lists ?? [];
-  const displayLists = getDisplayLists();
 
   return (
     <div className="min-h-dvh bg-ios-bg">
@@ -208,9 +191,7 @@ export default function Dashboard() {
                 className="p-1.5 rounded-lg text-ios-secondary active:bg-gray-100 transition-colors flex-shrink-0"
                 title="Switch household"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
+                <IconChevronDown />
               </button>
             )}
             <div className="min-w-0">
@@ -228,33 +209,18 @@ export default function Dashboard() {
                 title="Share invite link"
               >
                 {copied ? (
-                  <>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                    Copied!
-                  </>
+                  <><IconCheck size={14} strokeWidth={2.5} />Copied!</>
                 ) : (
-                  <>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8" />
-                      <polyline points="16 6 12 2 8 6" />
-                      <line x1="12" y1="2" x2="12" y2="15" />
-                    </svg>
-                    Invite
-                  </>
+                  <><IconShare />Invite</>
                 )}
               </button>
             )}
             <button
-              onClick={() => { setShowSettings(true); setNameInput(data?.name || ''); setEditingName(false); }}
+              onClick={() => setShowSettings(true)}
               className="p-2 rounded-lg text-ios-secondary active:bg-gray-100 transition-colors"
               title="Household settings"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
-              </svg>
+              <IconSettings />
             </button>
           </div>
         </div>
@@ -293,14 +259,7 @@ export default function Dashboard() {
                           onClick={(e) => e.stopPropagation()}
                           className="flex-shrink-0 touch-none cursor-grab active:cursor-grabbing p-1 text-ios-secondary/30"
                         >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                            <circle cx="9" cy="6" r="2" />
-                            <circle cx="15" cy="6" r="2" />
-                            <circle cx="9" cy="12" r="2" />
-                            <circle cx="15" cy="12" r="2" />
-                            <circle cx="9" cy="18" r="2" />
-                            <circle cx="15" cy="18" r="2" />
-                          </svg>
+                          <IconDragHandle />
                         </div>
                         <div className="w-10 h-10 bg-ios-blue/10 rounded-xl flex items-center justify-center text-xl">
                           {list.icon || '📝'}
@@ -319,36 +278,30 @@ export default function Dashboard() {
                         </div>
                       </div>
 
-                    {/* Action buttons */}
-                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        onClick={() => {
-                          setRenameTarget(list.listName);
-                          setRenameValue(list.listName);
-                          setRenameIcon(list.icon || '📝');
-                          setRenameCategory((list.category as ListCategory) || 'Other');
-                        }}
-                        className="p-2 rounded-lg text-ios-secondary active:bg-gray-100 transition-colors"
-                        title="Rename"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                          <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => setDeleteTarget(list.listName)}
-                        className="p-2 rounded-lg text-ios-red active:bg-red-50 transition-colors"
-                        title="Delete"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="3 6 5 6 21 6" />
-                          <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
-                        </svg>
-                      </button>
+                      {/* Action buttons */}
+                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => {
+                            setRenameTarget(list.listName);
+                            setRenameValue(list.listName);
+                            setRenameIcon(list.icon || '📝');
+                            setRenameCategory((list.category as ListCategory) || 'Other');
+                          }}
+                          className="p-2 rounded-lg text-ios-secondary active:bg-gray-100 transition-colors"
+                          title="Rename"
+                        >
+                          <IconEdit />
+                        </button>
+                        <button
+                          onClick={() => setDeleteTarget(list.listName)}
+                          className="p-2 rounded-lg text-ios-red active:bg-red-50 transition-colors"
+                          title="Delete"
+                        >
+                          <IconTrash />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
                 </div>
               );
             })}
@@ -361,10 +314,7 @@ export default function Dashboard() {
         onClick={() => setShowAdd(true)}
         className="fixed bottom-6 right-6 w-14 h-14 bg-ios-blue text-white rounded-full shadow-lg shadow-ios-blue/30 flex items-center justify-center active:scale-90 transition-transform z-10"
       >
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-          <line x1="12" y1="5" x2="12" y2="19" />
-          <line x1="5" y1="12" x2="19" y2="12" />
-        </svg>
+        <IconPlus />
       </button>
 
       {/* Add List Modal */}
@@ -406,10 +356,10 @@ export default function Dashboard() {
               </button>
               <button
                 type="submit"
-                disabled={!newListName.trim()}
+                disabled={!newListName.trim() || submitting}
                 className="flex-1 py-2.5 rounded-xl bg-ios-blue text-white font-semibold disabled:opacity-40 active:opacity-80 transition-opacity"
               >
-                Create
+                {submitting ? 'Creating…' : 'Create'}
               </button>
             </div>
           </form>
@@ -454,10 +404,10 @@ export default function Dashboard() {
               </button>
               <button
                 type="submit"
-                disabled={!renameValue.trim()}
+                disabled={!renameValue.trim() || submitting}
                 className="flex-1 py-2.5 rounded-xl bg-ios-blue text-white font-semibold disabled:opacity-40 active:opacity-80 transition-opacity"
               >
-                Save
+                {submitting ? 'Saving…' : 'Save'}
               </button>
             </div>
           </form>
@@ -473,235 +423,38 @@ export default function Dashboard() {
         onCancel={() => setDeleteTarget(null)}
       />
 
-      {/* Leave Confirm */}
-      <ConfirmDialog
-        open={showLeave}
-        title="Leave Household"
-        message="You'll need a new invite link to rejoin."
-        confirmLabel="Leave"
-        onConfirm={() => {
-          leaveHousehold();
-          setShowLeave(false);
-        }}
-        onCancel={() => setShowLeave(false)}
-      />
-
-      {/* Remove Member Confirm */}
-      <ConfirmDialog
-        open={!!removeTarget}
-        title="Remove Member"
-        message={`Remove ${data?.memberInfo?.[removeTarget || '']?.displayName || 'this member'} from the household?`}
-        confirmLabel="Remove"
-        onConfirm={handleRemoveMember}
-        onCancel={() => setRemoveTarget(null)}
-      />
-
       {/* Household Settings Modal */}
       {showSettings && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowSettings(false)} />
-          <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-xl max-h-[85vh] overflow-y-auto">
-            {/* Header */}
-            <div className="sticky top-0 bg-white rounded-t-2xl p-5 pb-3 border-b border-gray-100">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-ios-text">Household Settings</h3>
-                <button
-                  onClick={() => setShowSettings(false)}
-                  className="p-1 rounded-lg text-ios-secondary active:bg-gray-100"
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            <div className="p-5 space-y-5">
-              {/* Household Name */}
-              <div>
-                <label className="block text-xs font-medium text-ios-secondary uppercase tracking-wide mb-2">
-                  Household Name
-                </label>
-                {editingName ? (
-                  <form onSubmit={handleSaveName} className="flex gap-2">
-                    <input
-                      type="text"
-                      value={nameInput}
-                      onChange={(e) => setNameInput(e.target.value)}
-                      autoFocus
-                      className="flex-1 px-4 py-2.5 bg-ios-bg rounded-xl text-ios-text text-[15px] focus:outline-none focus:ring-2 focus:ring-ios-blue/30"
-                    />
-                    <button type="submit" disabled={!nameInput.trim()} className="px-4 py-2.5 rounded-xl bg-ios-blue text-white text-sm font-medium disabled:opacity-40">
-                      Save
-                    </button>
-                    <button type="button" onClick={() => setEditingName(false)} className="px-3 py-2.5 rounded-xl bg-ios-bg text-ios-secondary text-sm font-medium">
-                      ✕
-                    </button>
-                  </form>
-                ) : (
-                  <div className="flex items-center justify-between px-4 py-2.5 bg-ios-bg rounded-xl">
-                    <span className="text-ios-text text-[15px] font-medium">{data?.name || 'Untitled'}</span>
-                    {isAdmin && (
-                      <button
-                        onClick={() => { setNameInput(data?.name || ''); setEditingName(true); }}
-                        className="text-ios-blue text-sm font-medium"
-                      >
-                        Edit
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Invite Link (Admin only) */}
-              {isAdmin && (
-                <div>
-                  <label className="block text-xs font-medium text-ios-secondary uppercase tracking-wide mb-2">
-                    Invite Link
-                  </label>
-                  <div className="flex gap-2">
-                    <div className="flex-1 px-4 py-2.5 bg-ios-bg rounded-xl text-ios-secondary text-[13px] font-mono truncate">
-                      {inviteLink}
-                    </div>
-                    <button
-                      onClick={handleShare}
-                      className="px-4 py-2.5 rounded-xl bg-ios-blue text-white text-sm font-medium flex-shrink-0"
-                    >
-                      {copied ? '✓' : 'Share'}
-                    </button>
-                  </div>
-                  <p className="text-[11px] text-ios-secondary mt-1.5">
-                    Only admins can see and share this link.
-                  </p>
-                </div>
-              )}
-
-              {/* Members List */}
-              <div>
-                <label className="block text-xs font-medium text-ios-secondary uppercase tracking-wide mb-2">
-                  Members ({memberCount})
-                </label>
-                <div className="bg-ios-bg rounded-xl divide-y divide-gray-200/60">
-                  {(data?.members ?? []).map((uid) => {
-                    const info = data?.memberInfo?.[uid];
-                    const isSelf = uid === user?.uid;
-                    const memberIsAdmin = data?.admins?.includes(uid) ?? false;
-                    const adminCount = data?.admins?.length ?? 0;
-
-                    return (
-                      <div key={uid} className="flex items-center gap-3 px-4 py-3">
-                        {/* Avatar */}
-                        <div className="w-9 h-9 bg-ios-blue/15 rounded-full flex items-center justify-center text-ios-blue font-semibold text-sm flex-shrink-0">
-                          {(info?.displayName || '?').charAt(0).toUpperCase()}
-                        </div>
-                        {/* Info */}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[14px] font-medium text-ios-text truncate">
-                            {info?.displayName || 'Unknown'}{isSelf ? ' (you)' : ''}
-                          </p>
-                          <p className="text-[12px] text-ios-secondary truncate">{info?.email || uid}</p>
-                        </div>
-                        {/* Role Badge */}
-                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${
-                          memberIsAdmin ? 'bg-ios-blue/15 text-ios-blue' : 'bg-gray-200 text-ios-secondary'
-                        }`}>
-                          {memberIsAdmin ? 'Admin' : 'Member'}
-                        </span>
-                        {/* Admin actions */}
-                        {isAdmin && !isSelf && (
-                          <div className="flex items-center gap-1 flex-shrink-0">
-                            {memberIsAdmin ? (
-                              adminCount > 1 && (
-                                <button
-                                  onClick={() => demoteFromAdmin(uid)}
-                                  className="text-[11px] text-ios-secondary px-2 py-1 rounded-lg bg-gray-200 active:bg-gray-300"
-                                  title="Remove admin role"
-                                >
-                                  Demote
-                                </button>
-                              )
-                            ) : (
-                              <button
-                                onClick={() => promoteToAdmin(uid)}
-                                className="text-[11px] text-ios-blue px-2 py-1 rounded-lg bg-ios-blue/10 active:bg-ios-blue/20"
-                                title="Make admin"
-                              >
-                                Admin
-                              </button>
-                            )}
-                            <button
-                              onClick={() => setRemoveTarget(uid)}
-                              className="p-1 rounded-lg text-ios-red active:bg-red-50"
-                              title="Remove member"
-                            >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <line x1="18" y1="6" x2="6" y2="18" />
-                                <line x1="6" y1="6" x2="18" y2="18" />
-                              </svg>
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="space-y-2 pt-2">
-                <button
-                  onClick={signOut}
-                  className="w-full py-2.5 rounded-xl text-ios-secondary font-medium bg-ios-bg active:bg-gray-200 transition-colors text-[15px]"
-                >
-                  Sign out
-                </button>
-                <button
-                  onClick={() => { setShowSettings(false); setShowLeave(true); }}
-                  className="w-full py-2.5 rounded-xl text-ios-red font-medium bg-ios-red/8 active:bg-ios-red/15 transition-colors text-[15px]"
-                >
-                  Leave Household
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <SettingsModal
+          data={data}
+          user={user}
+          isAdmin={isAdmin}
+          inviteLink={inviteLink}
+          onClose={() => setShowSettings(false)}
+          onLeave={leaveHousehold}
+          renameHousehold={renameHousehold}
+          promoteToAdmin={promoteToAdmin}
+          demoteFromAdmin={demoteFromAdmin}
+          removeMember={removeMember}
+          signOut={signOut}
+        />
       )}
 
       {/* Household Switcher Modal */}
       {showSwitcher && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowSwitcher(false)} />
-          <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
-            <h3 className="text-lg font-semibold text-ios-text mb-3">Switch Household</h3>
-            <div className="space-y-2">
-              {userHouseholds.map((h) => (
-                <button
-                  key={h.id}
-                  onClick={() => { switchHousehold(h.id); setShowSwitcher(false); }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-colors ${
-                    h.id === householdId ? 'bg-ios-blue/10 border border-ios-blue/20' : 'bg-ios-bg active:bg-gray-200'
-                  }`}
-                >
-                  <div className="w-10 h-10 bg-ios-blue/10 rounded-xl flex items-center justify-center text-lg">🏠</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-ios-text text-[15px] truncate">{h.name}</p>
-                  </div>
-                  {h.id === householdId && (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-ios-blue flex-shrink-0">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  )}
-                </button>
-              ))}
-            </div>
-            <button
-              onClick={() => { leaveHousehold(); setShowSwitcher(false); }}
-              className="w-full mt-4 py-2.5 rounded-xl text-ios-blue font-medium bg-ios-bg active:bg-gray-200 transition-colors text-[15px]"
-            >
-              Join / Create Another
-            </button>
-          </div>
+        <HouseholdSwitcher
+          householdId={householdId}
+          userHouseholds={userHouseholds}
+          switchHousehold={switchHousehold}
+          onCreateNew={leaveHousehold}
+          onClose={() => setShowSwitcher(false)}
+        />
+      )}
+
+      {/* Error Toast */}
+      {error && (
+        <div className="fixed bottom-20 left-4 right-4 z-40 bg-ios-red text-white text-sm font-medium px-4 py-3 rounded-xl shadow-lg text-center">
+          {error}
         </div>
       )}
     </div>

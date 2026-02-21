@@ -1,22 +1,34 @@
 import { useState, useEffect, type FormEvent } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useHouseholdContext } from '../context/HouseholdContext';
 import { useAuth } from '../context/AuthContext';
+import ConfirmDialog from '../components/ConfirmDialog';
+import { IconChevronRight, IconShoppingBag } from '../components/Icons';
 
 export default function JoinScreen() {
-  const { createHousehold, joinHousehold, switchHousehold, userHouseholds, error, loading } = useHouseholdContext();
+  const { createHousehold, joinHousehold, switchHousehold, lookupHousehold, userHouseholds, error, loading } = useHouseholdContext();
   const { user, signOut } = useAuth();
   const { code: urlCode } = useParams<{ code?: string }>();
+  const navigate = useNavigate();
   const [mode, setMode] = useState<'idle' | 'create' | 'join'>('idle');
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
+  const [pendingJoin, setPendingJoin] = useState<{ code: string; name: string } | null>(null);
 
-  // Auto-join when arriving via invite link
+  // When arriving via invite link, look up the household name before joining
   useEffect(() => {
     if (urlCode && user && !loading) {
-      setCode(urlCode.toUpperCase());
-      setMode('join');
-      joinHousehold(urlCode).finally(() => setMode('idle'));
+      const normalized = urlCode.replace(/[-\s]/g, '').toUpperCase();
+      setCode(normalized);
+      lookupHousehold(urlCode).then((result) => {
+        if (result) {
+          setPendingJoin({ code: normalized, name: result.name });
+        } else {
+          // Household not found — fall through to manual join
+          setMode('join');
+          joinHousehold(urlCode).finally(() => setMode('idle'));
+        }
+      });
     }
   }, [urlCode, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -40,11 +52,7 @@ export default function JoinScreen() {
         {/* Logo / Header */}
         <div className="text-center mb-8">
           <div className="w-20 h-20 bg-ios-blue rounded-[22px] flex items-center justify-center mx-auto mb-4 shadow-lg">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" />
-              <line x1="3" y1="6" x2="21" y2="6" />
-              <path d="M16 10a4 4 0 01-8 0" />
-            </svg>
+            <IconShoppingBag className="text-white" />
           </div>
           <h1 className="text-2xl font-bold text-ios-text">Our Shopping List</h1>
           <p className="text-ios-secondary text-sm mt-1">
@@ -73,9 +81,7 @@ export default function JoinScreen() {
                       <p className="font-semibold text-ios-text text-[15px] truncate">{h.name}</p>
                       <p className="text-xs text-ios-secondary">Tap to open</p>
                     </div>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-ios-secondary/40">
-                      <polyline points="9 18 15 12 9 6" />
-                    </svg>
+                    <IconChevronRight className="text-ios-secondary/40" />
                   </button>
                 ))}
               </div>
@@ -147,6 +153,26 @@ export default function JoinScreen() {
         {error && (
           <p className="text-center text-xs text-ios-red mt-4 font-medium">{error}</p>
         )}
+
+        {/* Join confirmation dialog (from invite link) */}
+        <ConfirmDialog
+          open={!!pendingJoin}
+          title="Join Household"
+          message={`Do you want to join "${pendingJoin?.name}"?`}
+          confirmLabel="Join"
+          confirmColor="blue"
+          onConfirm={() => {
+            if (pendingJoin) {
+              setMode('join');
+              joinHousehold(pendingJoin.code).finally(() => setMode('idle'));
+              setPendingJoin(null);
+            }
+          }}
+          onCancel={() => {
+            setPendingJoin(null);
+            navigate('/');
+          }}
+        />
 
         <p className="text-center text-xs text-ios-secondary mt-6">
           Signed in as {user?.email}
