@@ -11,6 +11,8 @@ export default function SwipeableItem({ children, onDelete }: SwipeableItemProps
   const [offset, setOffset] = useState(0);
   const [swiping, setSwiping] = useState(false);
   const lockedAxis = useRef<'x' | 'y' | null>(null);
+  const pointerIdRef = useRef<number | null>(null);
+  const elementRef = useRef<HTMLDivElement | null>(null);
 
   function handlePointerDown(e: PointerEvent<HTMLDivElement>) {
     // Ignore right-click
@@ -18,8 +20,11 @@ export default function SwipeableItem({ children, onDelete }: SwipeableItemProps
     startX.current = e.clientX;
     startY.current = e.clientY;
     lockedAxis.current = null;
+    pointerIdRef.current = e.pointerId;
+    elementRef.current = e.currentTarget as HTMLDivElement;
     setSwiping(true);
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    // Do NOT setPointerCapture here — it would steal clicks from child buttons.
+    // We capture later once a horizontal swipe is confirmed.
   }
 
   function handlePointerMove(e: PointerEvent<HTMLDivElement>) {
@@ -30,6 +35,10 @@ export default function SwipeableItem({ children, onDelete }: SwipeableItemProps
     // Lock axis once movement exceeds threshold
     if (!lockedAxis.current && (Math.abs(diffX) > 8 || diffY > 8)) {
       lockedAxis.current = diffY > Math.abs(diffX) ? 'y' : 'x';
+      // Capture pointer only when we confirm a horizontal swipe
+      if (lockedAxis.current === 'x' && pointerIdRef.current !== null && elementRef.current) {
+        try { elementRef.current.setPointerCapture(pointerIdRef.current); } catch { /* ignore */ }
+      }
     }
 
     // If vertical scroll wins, bail out
@@ -48,6 +57,8 @@ export default function SwipeableItem({ children, onDelete }: SwipeableItemProps
   function handlePointerUp() {
     setSwiping(false);
     lockedAxis.current = null;
+    pointerIdRef.current = null;
+    elementRef.current = null;
     if (offset > 150) {
       // Auto-delete on large swipe
       setOffset(300);
