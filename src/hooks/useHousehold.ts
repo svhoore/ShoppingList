@@ -15,9 +15,23 @@ export interface ShoppingItem {
   createdAt: number;
 }
 
+export const LIST_CATEGORIES = [
+  'Groceries',
+  'Household',
+  'Health & Beauty',
+  'Electronics',
+  'Clothing',
+  'Pets',
+  'Office',
+  'Other',
+] as const;
+
+export type ListCategory = (typeof LIST_CATEGORIES)[number];
+
 export interface ShoppingList {
   listName: string;
   icon: string;
+  category: ListCategory;
   items: ShoppingItem[];
 }
 
@@ -54,6 +68,7 @@ export function useHousehold(householdId: string | null) {
           const lists = (raw.lists || []).map((l) => ({
             ...l,
             icon: l.icon || '📝',
+            category: l.category || 'Other',
             items: sortItems(l.items || []),
           }));
           setData({ lists });
@@ -83,10 +98,10 @@ export function useHousehold(householdId: string | null) {
   // ---- List operations ----
 
   const addList = useCallback(
-    async (name: string, icon = '📝') => {
+    async (name: string, icon = '📝', category: ListCategory = 'Other') => {
       const lists = await getLists();
       if (lists.some((l) => l.listName.toLowerCase() === name.toLowerCase())) return;
-      lists.push({ listName: name.trim(), icon, items: [] });
+      lists.push({ listName: name.trim(), icon, category, items: [] });
       await updateDoc(getRef(), { lists });
     },
     [getRef, getLists],
@@ -193,6 +208,18 @@ export function useHousehold(householdId: string | null) {
     [getRef, getLists],
   );
 
+  const setListCategory = useCallback(
+    async (listName: string, category: ListCategory) => {
+      const lists = await getLists();
+      const list = lists.find((l) => l.listName === listName);
+      if (list) {
+        list.category = category;
+        await updateDoc(getRef(), { lists });
+      }
+    },
+    [getRef, getLists],
+  );
+
   const reorderItems = useCallback(
     async (listName: string, fromIndex: number, toIndex: number) => {
       const lists = await getLists();
@@ -222,6 +249,7 @@ export function useHousehold(householdId: string | null) {
     editItem,
     activeCount,
     setListIcon,
+    setListCategory,
     reorderItems,
   };
 }

@@ -1,30 +1,33 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useHouseholdContext } from '../context/HouseholdContext';
-import { useHousehold } from '../hooks/useHousehold';
+import { useHousehold, LIST_CATEGORIES, type ListCategory } from '../hooks/useHousehold';
 import ConfirmDialog from '../components/ConfirmDialog';
 import IconPicker from '../components/IconPicker';
 
 export default function Dashboard() {
   const { householdId, leaveHousehold } = useHouseholdContext();
-  const { data, loading, addList, deleteList, renameList, setListIcon } = useHousehold(householdId);
+  const { data, loading, addList, deleteList, renameList, setListIcon, setListCategory } = useHousehold(householdId);
   const navigate = useNavigate();
 
   const [showAdd, setShowAdd] = useState(false);
   const [newListName, setNewListName] = useState('');
   const [newListIcon, setNewListIcon] = useState('📝');
+  const [newListCategory, setNewListCategory] = useState<ListCategory>('Other');
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [renameIcon, setRenameIcon] = useState('📝');
+  const [renameCategory, setRenameCategory] = useState<ListCategory>('Other');
   const [showLeave, setShowLeave] = useState(false);
 
   async function handleAddList(e: FormEvent) {
     e.preventDefault();
     if (!newListName.trim()) return;
-    await addList(newListName, newListIcon);
+    await addList(newListName, newListIcon, newListCategory);
     setNewListName('');
     setNewListIcon('📝');
+    setNewListCategory('Other');
     setShowAdd(false);
   }
 
@@ -39,10 +42,13 @@ export default function Dashboard() {
     e.preventDefault();
     if (renameTarget && renameValue.trim()) {
       await renameList(renameTarget, renameValue);
-      // Also update icon if it changed
+      // Also update icon/category if they changed
       const list = data?.lists.find((l) => l.listName === renameTarget);
       if (list && list.icon !== renameIcon) {
         await setListIcon(renameValue.trim(), renameIcon);
+      }
+      if (list && list.category !== renameCategory) {
+        await setListCategory(renameValue.trim(), renameCategory);
       }
       setRenameTarget(null);
       setRenameValue('');
@@ -104,6 +110,8 @@ export default function Dashboard() {
                       <div>
                         <h2 className="font-semibold text-ios-text text-[15px]">{list.listName}</h2>
                         <p className="text-xs text-ios-secondary">
+                          <span className="text-ios-blue/70 font-medium">{list.category || 'Other'}</span>
+                          <span className="mx-1">·</span>
                           {total === 0
                             ? 'No items'
                             : remaining === 0
@@ -120,6 +128,7 @@ export default function Dashboard() {
                           setRenameTarget(list.listName);
                           setRenameValue(list.listName);
                           setRenameIcon(list.icon || '📝');
+                          setRenameCategory((list.category as ListCategory) || 'Other');
                         }}
                         className="p-2 rounded-lg text-ios-secondary active:bg-gray-100 transition-colors"
                         title="Rename"
@@ -179,6 +188,15 @@ export default function Dashboard() {
                 className="flex-1 px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[16px] placeholder:text-ios-secondary/50 focus:outline-none focus:ring-2 focus:ring-ios-blue/30"
               />
             </div>
+            <select
+              value={newListCategory}
+              onChange={(e) => setNewListCategory(e.target.value as ListCategory)}
+              className="w-full mt-3 px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[15px] focus:outline-none focus:ring-2 focus:ring-ios-blue/30 appearance-none"
+            >
+              {LIST_CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
             <div className="flex gap-3 mt-4">
               <button
                 type="button"
@@ -218,6 +236,15 @@ export default function Dashboard() {
                 className="flex-1 px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[16px] focus:outline-none focus:ring-2 focus:ring-ios-blue/30"
               />
             </div>
+            <select
+              value={renameCategory}
+              onChange={(e) => setRenameCategory(e.target.value as ListCategory)}
+              className="w-full mt-3 px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[15px] focus:outline-none focus:ring-2 focus:ring-ios-blue/30 appearance-none"
+            >
+              {LIST_CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
             <div className="flex gap-3 mt-4">
               <button
                 type="button"
