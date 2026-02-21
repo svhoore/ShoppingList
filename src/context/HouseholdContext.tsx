@@ -10,28 +10,32 @@ import { doc, getDoc, setDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from './AuthContext';
 
+/* ---- Random invite code generator ---- */
+function generateCode(): string {
+  // 8 uppercase alphanumeric chars, excluding ambiguous 0/O/1/I/L
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => chars[b % chars.length]).join('');
+}
+
+/** Format code for display: "ABCD-EFGH" */
+export function formatCode(code: string): string {
+  return code.length === 8 ? `${code.slice(0, 4)}-${code.slice(4)}` : code;
+}
+
 interface HouseholdContextValue {
   householdId: string | null;
   loading: boolean;
   error: string | null;
-  createHousehold: (id: string) => Promise<boolean>;
-  joinHousehold: (id: string) => Promise<boolean>;
+  createHousehold: (name: string) => Promise<boolean>;
+  joinHousehold: (code: string) => Promise<boolean>;
   leaveHousehold: () => void;
 }
 
 const HouseholdContext = createContext<HouseholdContextValue | null>(null);
 
 const STORAGE_KEY = 'osl_household_id';
-
-function slugify(input: string): string {
-  return input
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9-]/g, '')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-}
 
 export function HouseholdProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -48,10 +52,10 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   }, []);
 
-  const createHousehold = useCallback(async (rawId: string): Promise<boolean> => {
-    const id = slugify(rawId);
-    if (!id || id.length < 3) {
-      setError('Household ID must be at least 3 characters');
+  const createHousehold = useCallback(async (name: string): Promise<boolean> => {
+    const trimmed = name.trim();
+    if (!trimmed || trimmed.length < 2) {
+      setError('Household name must be at least 2 characters');
       return false;
     }
     if (!user) {
@@ -61,16 +65,11 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
     setError(null);
     setLoading(true);
     try {
-      const ref = doc(db, 'households', id);
-      const snap = await getDoc(ref);
-      if (snap.exists()) {
-        setError('This Household ID is already taken. Try joining it instead.');
-        setLoading(false);
-        return false;
-      }
-      await setDoc(ref, { lists: [], members: [user.uid] });
-      localStorage.setItem(STORAGE_KEY, id);
-      setHouseholdId(id);
+      const code = generateCode();
+      const ref = doc(db, 'households', code);
+      await setDoc(ref, { name: trimmed, lists: [], members: [user.uid] });
+      localStorage.setItem(STORAGE_KEY, code);
+      setHouseholdId(code);
       setLoading(false);
       return true;
     } catch (e) {
@@ -81,10 +80,11 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
-  const joinHousehold = useCallback(async (rawId: string): Promise<boolean> => {
-    const id = slugify(rawId);
-    if (!id || id.length < 3) {
-      setError('Household ID must be at least 3 characters');
+  const joinHousehold = useCallback(async (rawCode: string): Promise<boolean> => {
+    // Normalize: remove hyphens/spaces, uppercase
+    const code = rawCode.replace(/[-\s]/g, '').toUpperCase();
+    if (!code || code.length < 6) {
+      setError('Enter a valid invite code');
       return false;
     }
     if (!user) {
@@ -94,22 +94,20 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
     setError(null);
     setLoading(true);
     try {
-      const ref = doc(db, 'households', id);
+      const ref = doc(db, 'households', code);
       const snap = await getDoc(ref);
       if (!snap.exists()) {
-        setError('Household not found. Check the ID or create a new one.');
+        setError('Household not found. Check the invite code.');
         setLoading(false);
         return false;
       }
-      // Check if this household has members and user is allowed
       const data = snap.data();
       const members: string[] = data.members || [];
       if (!members.includes(user.uid)) {
-        // Add user to the members list (Firestore rules allow this join operation)
         await updateDoc(ref, { members: arrayUnion(user.uid) });
       }
-      localStorage.setItem(STORAGE_KEY, id);
-      setHouseholdId(id);
+      localStorage.setItem(STORAGE_KEY, code);
+      setHouseholdId(code);
       setLoading(false);
       return true;
     } catch (e) {
@@ -140,5 +138,3 @@ export function useHouseholdContext() {
   if (!ctx) throw new Error('useHouseholdContext must be used within HouseholdProvider');
   return ctx;
 }
-
-export { slugify };

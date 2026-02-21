@@ -1,23 +1,25 @@
 import { useState, type FormEvent } from 'react';
-import { useHouseholdContext, slugify } from '../context/HouseholdContext';
+import { useHouseholdContext } from '../context/HouseholdContext';
 import { useAuth } from '../context/AuthContext';
 
 export default function JoinScreen() {
   const { createHousehold, joinHousehold, error, loading } = useHouseholdContext();
   const { user, signOut } = useAuth();
-  const [input, setInput] = useState('');
   const [mode, setMode] = useState<'idle' | 'create' | 'join'>('idle');
+  const [name, setName] = useState('');
+  const [code, setCode] = useState('');
 
-  const slug = slugify(input);
-
-  async function handleSubmit(e: FormEvent, action: 'create' | 'join') {
+  async function handleCreate(e: FormEvent) {
     e.preventDefault();
-    setMode(action);
-    if (action === 'create') {
-      await createHousehold(input);
-    } else {
-      await joinHousehold(input);
-    }
+    setMode('create');
+    await createHousehold(name);
+    setMode('idle');
+  }
+
+  async function handleJoin(e: FormEvent) {
+    e.preventDefault();
+    setMode('join');
+    await joinHousehold(code);
     setMode('idle');
   }
 
@@ -39,47 +41,64 @@ export default function JoinScreen() {
           </p>
         </div>
 
-        {/* Form Card */}
-        <div className="bg-white rounded-2xl shadow-sm p-5">
+        {/* Create Card */}
+        <form onSubmit={handleCreate} className="bg-white rounded-2xl shadow-sm p-5 mb-3">
           <label className="block text-xs font-medium text-ios-secondary uppercase tracking-wide mb-2">
-            Household ID
+            Create a new household
           </label>
           <input
             type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="e.g. the-wilson-kitchen"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Smith Family"
             className="w-full px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[16px] placeholder:text-ios-secondary/50 focus:outline-none focus:ring-2 focus:ring-ios-blue/30 transition-shadow"
-            autoCapitalize="none"
+            autoCapitalize="words"
             autoCorrect="off"
             spellCheck={false}
           />
-          {slug && slug !== input.toLowerCase().trim() && (
-            <p className="text-xs text-ios-secondary mt-1.5">
-              Will be saved as: <span className="font-medium text-ios-text">{slug}</span>
-            </p>
-          )}
-          {error && (
-            <p className="text-xs text-ios-red mt-2 font-medium">{error}</p>
-          )}
+          <button
+            type="submit"
+            disabled={loading || !name.trim() || name.trim().length < 2}
+            className="w-full mt-3 py-3 rounded-xl bg-ios-blue text-white font-semibold text-[15px] active:opacity-80 disabled:opacity-40 transition-opacity"
+          >
+            {mode === 'create' && loading ? 'Creating…' : 'Create New'}
+          </button>
+        </form>
 
-          <div className="flex gap-3 mt-4">
-            <button
-              onClick={(e) => handleSubmit(e, 'create')}
-              disabled={loading || !slug}
-              className="flex-1 py-3 rounded-xl bg-ios-blue text-white font-semibold text-[15px] active:opacity-80 disabled:opacity-40 transition-opacity"
-            >
-              {mode === 'create' && loading ? 'Creating…' : 'Create New'}
-            </button>
-            <button
-              onClick={(e) => handleSubmit(e, 'join')}
-              disabled={loading || !slug}
-              className="flex-1 py-3 rounded-xl bg-ios-bg text-ios-blue font-semibold text-[15px] border border-ios-blue/20 active:bg-ios-blue/5 disabled:opacity-40 transition-all"
-            >
-              {mode === 'join' && loading ? 'Joining…' : 'Join Existing'}
-            </button>
-          </div>
+        {/* Divider */}
+        <div className="flex items-center gap-3 my-4">
+          <div className="flex-1 h-px bg-gray-200" />
+          <span className="text-xs text-ios-secondary font-medium">OR</span>
+          <div className="flex-1 h-px bg-gray-200" />
         </div>
+
+        {/* Join Card */}
+        <form onSubmit={handleJoin} className="bg-white rounded-2xl shadow-sm p-5">
+          <label className="block text-xs font-medium text-ios-secondary uppercase tracking-wide mb-2">
+            Join with invite code
+          </label>
+          <input
+            type="text"
+            value={code}
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            placeholder="e.g. ABCD-EFGH"
+            className="w-full px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[16px] placeholder:text-ios-secondary/50 focus:outline-none focus:ring-2 focus:ring-ios-blue/30 transition-shadow font-mono tracking-widest text-center"
+            autoCapitalize="characters"
+            autoCorrect="off"
+            spellCheck={false}
+          />
+          <button
+            type="submit"
+            disabled={loading || code.replace(/[-\s]/g, '').length < 6}
+            className="w-full mt-3 py-3 rounded-xl bg-ios-bg text-ios-blue font-semibold text-[15px] border border-ios-blue/20 active:bg-ios-blue/5 disabled:opacity-40 transition-all"
+          >
+            {mode === 'join' && loading ? 'Joining…' : 'Join Existing'}
+          </button>
+        </form>
+
+        {error && (
+          <p className="text-center text-xs text-ios-red mt-4 font-medium">{error}</p>
+        )}
 
         <p className="text-center text-xs text-ios-secondary mt-6">
           Signed in as {user?.email}

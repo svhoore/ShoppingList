@@ -36,6 +36,7 @@ export interface ShoppingList {
 }
 
 export interface HouseholdData {
+  name: string;
   lists: ShoppingList[];
 }
 
@@ -71,9 +72,9 @@ export function useHousehold(householdId: string | null) {
             category: l.category || 'Other',
             items: sortItems(l.items || []),
           }));
-          setData({ lists });
+          setData({ name: raw.name || '', lists });
         } else {
-          setData({ lists: [] });
+          setData({ name: '', lists: [] });
         }
         setLoading(false);
       },

@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useHouseholdContext } from '../context/HouseholdContext';
+import { useHouseholdContext, formatCode } from '../context/HouseholdContext';
 import { useAuth } from '../context/AuthContext';
 import { useHousehold, LIST_CATEGORIES, type ListCategory } from '../hooks/useHousehold';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -22,6 +22,28 @@ export default function Dashboard() {
   const [renameIcon, setRenameIcon] = useState('📝');
   const [renameCategory, setRenameCategory] = useState<ListCategory>('Other');
   const [showLeave, setShowLeave] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const inviteCode = householdId ? formatCode(householdId) : '';
+
+  async function handleCopyCode() {
+    if (!householdId) return;
+    try {
+      await navigator.clipboard.writeText(inviteCode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback: select + copy
+      const el = document.createElement('textarea');
+      el.value = inviteCode;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  }
 
   // ---- Drag-and-drop state for list reordering ----
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -144,12 +166,35 @@ export default function Dashboard() {
       <div className="bg-white/80 backdrop-blur-xl sticky top-0 z-10 border-b border-gray-200/60">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-ios-text">Our Shopping List</h1>
+            <h1 className="text-xl font-bold text-ios-text">{data?.name || 'Our Shopping List'}</h1>
             <p className="text-xs text-ios-secondary">
-              {householdId} · {user?.displayName?.split(' ')[0] || user?.email}
+              {user?.displayName?.split(' ')[0] || user?.email}
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleCopyCode}
+              className="text-xs text-ios-blue px-3 py-1.5 rounded-lg bg-ios-blue/10 active:bg-ios-blue/20 transition-colors font-medium flex items-center gap-1"
+              title="Copy invite code"
+            >
+              {copied ? (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  Copied!
+                </>
+              ) : (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8" />
+                    <polyline points="16 6 12 2 8 6" />
+                    <line x1="12" y1="2" x2="12" y2="15" />
+                  </svg>
+                  Invite
+                </>
+              )}
+            </button>
             <button
               onClick={signOut}
               className="text-xs text-ios-secondary px-3 py-1.5 rounded-lg bg-gray-100 active:bg-gray-200 transition-colors font-medium"
@@ -383,7 +428,7 @@ export default function Dashboard() {
       <ConfirmDialog
         open={showLeave}
         title="Leave Household"
-        message="You'll need to re-enter the Household ID to reconnect."
+        message={`You'll need the invite code (${inviteCode}) to rejoin.`}
         confirmLabel="Leave"
         onConfirm={() => {
           leaveHousehold();
