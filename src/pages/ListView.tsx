@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, type FormEvent, type KeyboardEvent } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo, type FormEvent, type KeyboardEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useHouseholdContext } from '../context/HouseholdContext';
 import { useHousehold, type ShoppingItem } from '../hooks/useHousehold';
@@ -22,6 +22,7 @@ export default function ListView() {
   const [showRename, setShowRename] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const [renameValue, setRenameValue] = useState(listName);
+  const [submitting, setSubmitting] = useState(false);
   const newItemRef = useRef<HTMLInputElement>(null);
 
   const list = data?.lists.find((l) => l.listName === listName);
@@ -37,13 +38,13 @@ export default function ListView() {
   const listContainerRef = useRef<HTMLDivElement>(null);
 
   // Calculate displayed order during drag
-  const displayItems = (() => {
+  const displayItems = useMemo(() => {
     if (dragIndex === null || overIndex === null || dragIndex === overIndex) return activeItems;
     const items = [...activeItems];
     const [moved] = items.splice(dragIndex, 1);
     items.splice(overIndex, 0, moved);
     return items;
-  })();
+  }, [activeItems, dragIndex, overIndex]);
 
   const handleDragStart = useCallback((index: number, clientY: number) => {
     setDragIndex(index);
@@ -129,6 +130,8 @@ export default function ListView() {
   }
 
   async function handleDeleteList() {
+    if (submitting) return;
+    setSubmitting(true);
     await deleteList(listName);
     navigate('/', { replace: true });
   }
@@ -258,6 +261,7 @@ export default function ListView() {
               onKeyDown={handleAddKeyDown}
               placeholder="Add an item…"
               enterKeyHint="done"
+              maxLength={200}
               className="flex-1 text-[15px] text-ios-text placeholder:text-ios-secondary/40 bg-transparent focus:outline-none py-0.5"
             />
           </div>
@@ -316,6 +320,7 @@ export default function ListView() {
               value={renameValue}
               onChange={(e) => setRenameValue(e.target.value)}
               autoFocus
+              maxLength={60}
               className="w-full px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[16px] focus:outline-none focus:ring-2 focus:ring-ios-blue/30"
             />
             <div className="flex gap-3 mt-4">

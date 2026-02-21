@@ -84,6 +84,7 @@ export default function CategoryPicker({
             onKeyDown={handleKeyDown}
             placeholder="Category name…"
             autoFocus
+            maxLength={30}
             className="flex-1 px-3 py-2 bg-ios-bg rounded-xl text-ios-text text-[14px] placeholder:text-ios-secondary/40 focus:outline-none focus:ring-2 focus:ring-ios-blue/30"
           />
           <button

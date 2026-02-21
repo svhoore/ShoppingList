@@ -1,9 +1,8 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   doc,
   onSnapshot,
   updateDoc,
-  getDoc,
   arrayUnion,
   arrayRemove,
   deleteField,
@@ -50,6 +49,9 @@ export function useHousehold(householdId: string | null) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Keep a ref so callbacks always read the latest snapshot without stale closures
+  const dataRef = useRef<HouseholdData | null>(null);
+
   // Real-time listener
   useEffect(() => {
     if (!householdId) {
@@ -70,7 +72,7 @@ export function useHousehold(householdId: string | null) {
             category: l.category || '',
             items: sortItems(l.items || []),
           }));
-          setData({
+          const household: HouseholdData = {
             name: raw.name || '',
             icon: raw.icon || undefined,
             lists,
@@ -78,9 +80,21 @@ export function useHousehold(householdId: string | null) {
             admins: raw.admins || [],
             memberInfo: raw.memberInfo || {},
             customCategories: raw.customCategories || [],
-          });
+          };
+          dataRef.current = household;
+          setData(household);
+
+          // Warn if document is approaching Firestore's 1 MB limit
+          const estimatedKB = JSON.stringify(raw).length / 1024;
+          if (estimatedKB > 800) {
+            console.warn(
+              `⚠️ Household document is ~${estimatedKB.toFixed(0)}KB — approaching Firestore's 1024KB limit. Consider archiving old lists.`,
+            );
+          }
         } else {
-          setData({ name: '', lists: [], members: [], admins: [], memberInfo: {}, customCategories: [] });
+          const empty: HouseholdData = { name: '', lists: [], members: [], admins: [], memberInfo: {}, customCategories: [] };
+          dataRef.current = empty;
+          setData(empty);
         }
         setLoading(false);
       },
@@ -97,10 +111,10 @@ export function useHousehold(householdId: string | null) {
     return doc(db, 'households', householdId);
   }, [householdId]);
 
-  const getLists = useCallback(async (): Promise<ShoppingList[]> => {
-    const snap = await getDoc(getRef());
-    return snap.exists() ? (snap.data() as HouseholdData).lists || [] : [];
-  }, [getRef]);
+  /** Deep-clone the latest lists from the real-time listener (no network round-trip). */
+  const getLists = useCallback((): ShoppingList[] => {
+    return JSON.parse(JSON.stringify(dataRef.current?.lists || []));
+  }, []);
 
   /**
    * Helper: read lists, apply a mutation, then write back.
@@ -113,7 +127,7 @@ export function useHousehold(householdId: string | null) {
     async (fn: (lists: ShoppingList[]) => boolean | void, errorMsg: string) => {
       try {
         setError(null);
-        const lists = await getLists();
+        const lists = getLists();
         if (fn(lists) === false) return;
         await updateDoc(getRef(), { lists });
       } catch (e) {
@@ -174,93 +188,85 @@ export function useHousehold(householdId: string | null) {
   // ---- List operations ----
 
   const addList = useCallback(
-    async (name: string, icon = '📝', category?: string) => {
-      const lists = await getLists();
-      if (lists.some((l) => l.listName.toLowerCase() === name.toLowerCase())) return;
-      lists.push({ listName: name.trim(), icon, category: category || '', items: [] });
-      await updateDoc(getRef(), { lists });
-    },
-    [getRef, getLists],
+    (name: string, icon = '📝', category?: string) =>
+      updateLists((lists) => {
+        if (lists.some((l) => l.listName.toLowerCase() === name.trim().toLowerCase())) return false;
+        lists.push({ listName: name.trim(), icon, category: category || '', items: [] });
+      }, 'Failed to add list'),
+    [updateLists],
   );
 
   const renameList = useCallback(
-    async (oldName: string, newName: string) => {
-      const lists = await getLists();
-      const list = lists.find((l) => l.listName === oldName);
-      if (list) {
+    (oldName: string, newName: string) =>
+      updateLists((lists) => {
+        const list = lists.find((l) => l.listName === oldName);
+        if (!list) return false;
         list.listName = newName.trim();
-        await updateDoc(getRef(), { lists });
-      }
-    },
-    [getRef, getLists],
+      }, 'Failed to rename list'),
+    [updateLists],
   );
 
   const deleteList = useCallback(
-    async (name: string) => {
-      const lists = await getLists();
-      const filtered = lists.filter((l) => l.listName !== name);
-      await updateDoc(getRef(), { lists: filtered });
-    },
-    [getRef, getLists],
+    (name: string) =>
+      updateLists((lists) => {
+        const idx = lists.findIndex((l) => l.listName === name);
+        if (idx === -1) return false;
+        lists.splice(idx, 1);
+      }, 'Failed to delete list'),
+    [updateLists],
   );
 
   // ---- Item operations ----
 
   const addItem = useCallback(
-    async (listName: string, text: string) => {
-      const lists = await getLists();
-      const list = lists.find((l) => l.listName === listName);
-      if (!list) return;
-      list.items.push({
-        id: uuidv4(),
-        text: text.trim(),
-        completed: false,
-        createdAt: Date.now(),
-      });
-      await updateDoc(getRef(), { lists });
-    },
-    [getRef, getLists],
+    (listName: string, text: string) =>
+      updateLists((lists) => {
+        const list = lists.find((l) => l.listName === listName);
+        if (!list) return false;
+        list.items.push({
+          id: uuidv4(),
+          text: text.trim(),
+          completed: false,
+          createdAt: Date.now(),
+        });
+      }, 'Failed to add item'),
+    [updateLists],
   );
 
   const toggleItem = useCallback(
-    async (listName: string, itemId: string) => {
-      const lists = await getLists();
-      const list = lists.find((l) => l.listName === listName);
-      if (!list) return;
-      const item = list.items.find((i) => i.id === itemId);
-      if (item) {
+    (listName: string, itemId: string) =>
+      updateLists((lists) => {
+        const list = lists.find((l) => l.listName === listName);
+        if (!list) return false;
+        const item = list.items.find((i) => i.id === itemId);
+        if (!item) return false;
         item.completed = !item.completed;
-        await updateDoc(getRef(), { lists });
-      }
-    },
-    [getRef, getLists],
+      }, 'Failed to toggle item'),
+    [updateLists],
   );
 
   const deleteItem = useCallback(
-    async (listName: string, itemId: string) => {
-      const lists = await getLists();
-      const list = lists.find((l) => l.listName === listName);
-      if (!list) return;
-      list.items = list.items.filter((i) => i.id !== itemId);
-      await updateDoc(getRef(), { lists });
-    },
-    [getRef, getLists],
+    (listName: string, itemId: string) =>
+      updateLists((lists) => {
+        const list = lists.find((l) => l.listName === listName);
+        if (!list) return false;
+        list.items = list.items.filter((i) => i.id !== itemId);
+      }, 'Failed to delete item'),
+    [updateLists],
   );
 
   const editItem = useCallback(
-    async (listName: string, itemId: string, newText: string) => {
-      const trimmed = newText.trim();
-      if (!trimmed) return;
-      const lists = await getLists();
-      const list = lists.find((l) => l.listName === listName);
-      if (!list) return;
-      const item = list.items.find((i) => i.id === itemId);
-      if (item) {
+    (listName: string, itemId: string, newText: string) =>
+      updateLists((lists) => {
+        const trimmed = newText.trim();
+        if (!trimmed) return false;
+        const list = lists.find((l) => l.listName === listName);
+        if (!list) return false;
+        const item = list.items.find((i) => i.id === itemId);
+        if (!item) return false;
         item.text = trimmed;
-        await updateDoc(getRef(), { lists });
-      }
-    },
-    [getRef, getLists],
+      }, 'Failed to edit item'),
+    [updateLists],
   );
 
   const addCategory = useCallback(
@@ -282,13 +288,24 @@ export function useHousehold(householdId: string | null) {
     async (categoryName: string) => {
       try {
         setError(null);
-        await updateDoc(getRef(), { customCategories: arrayRemove(categoryName) });
+        // Remove from customCategories AND clear from any lists using it
+        const lists = getLists();
+        let listsChanged = false;
+        for (const list of lists) {
+          if (list.category === categoryName) {
+            list.category = '';
+            listsChanged = true;
+          }
+        }
+        const update: Record<string, unknown> = { customCategories: arrayRemove(categoryName) };
+        if (listsChanged) update.lists = lists;
+        await updateDoc(getRef(), update);
       } catch (e) {
         console.error('Failed to remove category', e);
         setError('Failed to remove category');
       }
     },
-    [getRef],
+    [getRef, getLists],
   );
 
   const toggleBonus = useCallback(
@@ -301,15 +318,6 @@ export function useHousehold(householdId: string | null) {
         item.bonus = !item.bonus;
       }, 'Failed to update bonus tag'),
     [updateLists],
-  );
-
-  const activeCount = useCallback(
-    (listName: string): number => {
-      if (!data) return 0;
-      const list = data.lists.find((l) => l.listName === listName);
-      return list ? list.items.filter((i) => !i.completed).length : 0;
-    },
-    [data],
   );
 
   const setListIcon = useCallback(
@@ -385,7 +393,6 @@ export function useHousehold(householdId: string | null) {
     toggleItem,
     deleteItem,
     editItem,
-    activeCount,
     setListIcon,
     setListCategory,
     addCategory,

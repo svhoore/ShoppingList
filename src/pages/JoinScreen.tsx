@@ -109,6 +109,7 @@ export default function JoinScreen() {
             autoCapitalize="words"
             autoCorrect="off"
             spellCheck={false}
+            maxLength={60}
           />
           <button
             type="submit"
@@ -140,6 +141,7 @@ export default function JoinScreen() {
             autoCapitalize="characters"
             autoCorrect="off"
             spellCheck={false}
+            maxLength={12}
           />
           <button
             type="submit"

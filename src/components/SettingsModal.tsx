@@ -4,6 +4,7 @@ import type { HouseholdData } from '../hooks/useHousehold';
 import ConfirmDialog from './ConfirmDialog';
 import HouseholdIconPicker from './HouseholdIconPicker';
 import { IconX } from './Icons';
+import { shareOrCopy } from '../lib/share';
 
 interface SettingsModalProps {
   data: HouseholdData | null;
@@ -17,12 +18,13 @@ interface SettingsModalProps {
   promoteToAdmin: (uid: string) => Promise<void>;
   demoteFromAdmin: (uid: string) => Promise<void>;
   removeMember: (uid: string) => Promise<void>;
+  removeCategory: (name: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
 export default function SettingsModal({
   data, user, isAdmin, inviteLink, onClose, onLeave,
-  renameHousehold, setHouseholdIcon, promoteToAdmin, demoteFromAdmin, removeMember, signOut,
+  renameHousehold, setHouseholdIcon, promoteToAdmin, demoteFromAdmin, removeMember, removeCategory, signOut,
 }: SettingsModalProps) {
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(data?.name || '');
@@ -33,26 +35,17 @@ export default function SettingsModal({
   const memberCount = data?.members?.length ?? 0;
 
   async function handleShare() {
-    const shareData = {
-      title: data?.name || 'Our Shopping List',
-      text: `Join my household "${data?.name || 'Our Shopping List'}" on Our Shopping List!`,
-      url: inviteLink,
-    };
-    if (navigator.share) {
-      try { await navigator.share(shareData); return; } catch { /* cancelled */ }
-    }
-    try {
-      await navigator.clipboard.writeText(inviteLink);
-    } catch {
-      const el = document.createElement('textarea');
-      el.value = inviteLink;
-      document.body.appendChild(el);
-      el.select();
-      document.execCommand('copy');
-      document.body.removeChild(el);
-    }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    await shareOrCopy(
+      {
+        title: data?.name || 'Our Shopping List',
+        text: `Join my household "${data?.name || 'Our Shopping List'}" on Our Shopping List!`,
+        url: inviteLink,
+      },
+      () => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      },
+    );
   }
 
   async function handleSaveName(e: FormEvent) {
@@ -98,6 +91,7 @@ export default function SettingsModal({
                     value={nameInput}
                     onChange={(e) => setNameInput(e.target.value)}
                     autoFocus
+                    maxLength={60}
                     className="flex-1 px-4 py-2.5 bg-ios-bg rounded-xl text-ios-text text-[15px] focus:outline-none focus:ring-2 focus:ring-ios-blue/30"
                   />
                   <button type="submit" disabled={!nameInput.trim()} className="px-4 py-2.5 rounded-xl bg-ios-blue text-white text-sm font-medium disabled:opacity-40">
@@ -149,6 +143,32 @@ export default function SettingsModal({
                 </div>
                 <p className="text-[11px] text-ios-secondary mt-1.5">
                   Only admins can see and share this link.
+                </p>
+              </div>
+            )}
+
+            {/* Custom Categories (Admin) */}
+            {isAdmin && (data?.customCategories?.length ?? 0) > 0 && (
+              <div>
+                <label className="block text-xs font-medium text-ios-secondary uppercase tracking-wide mb-2">
+                  Categories
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {data?.customCategories?.map((cat) => (
+                    <div key={cat} className="flex items-center gap-1 px-3 py-1.5 bg-ios-bg rounded-lg">
+                      <span className="text-[13px] font-medium text-ios-text">{cat}</span>
+                      <button
+                        onClick={() => removeCategory(cat)}
+                        className="p-0.5 rounded text-ios-secondary hover:text-ios-red transition-colors"
+                        title={`Remove "${cat}"`}
+                      >
+                        <IconX size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[11px] text-ios-secondary mt-1.5">
+                  Removing a category also un-assigns it from any lists using it.
                 </p>
               </div>
             )}

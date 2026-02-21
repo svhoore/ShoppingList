@@ -43,7 +43,7 @@ export default function ItemRow({ item, onToggle, onEdit, onDelete, onToggleBonu
 
   return (
     <div
-      className={`flex items-center gap-2 px-4 py-3 transition-opacity duration-300 ${
+      className={`group flex items-center gap-2 px-4 py-3 transition-opacity duration-300 ${
         item.completed ? 'opacity-50' : ''
       } ${isDragging ? 'scale-[1.02]' : ''}`}
     >
@@ -76,6 +76,7 @@ export default function ItemRow({ item, onToggle, onEdit, onDelete, onToggleBonu
           onChange={(e) => setEditText(e.target.value)}
           onBlur={commitEdit}
           onKeyDown={handleEditKeyDown}
+          maxLength={200}
           className="flex-1 text-[15px] text-ios-text bg-transparent focus:outline-none border-b border-ios-blue/30 py-0.5"
         />
       ) : (
@@ -111,7 +112,7 @@ export default function ItemRow({ item, onToggle, onEdit, onDelete, onToggleBonu
       {!editing && (
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          className="p-1.5 rounded-lg text-ios-secondary/40 hover:text-ios-red active:text-ios-red active:bg-red-50 transition-colors flex-shrink-0"
+          className="p-1.5 rounded-lg text-ios-secondary/40 hover:text-ios-red active:text-ios-red active:bg-red-50 transition-all flex-shrink-0 sm:opacity-0 sm:group-hover:opacity-100"
         >
           <IconX size={16} />
         </button>

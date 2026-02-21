@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode, type TouchEvent } from 'react';
+import { useRef, useState, type ReactNode, type PointerEvent } from 'react';
 
 interface SwipeableItemProps {
   children: ReactNode;
@@ -7,28 +7,47 @@ interface SwipeableItemProps {
 
 export default function SwipeableItem({ children, onDelete }: SwipeableItemProps) {
   const startX = useRef(0);
-  const currentX = useRef(0);
+  const startY = useRef(0);
   const [offset, setOffset] = useState(0);
   const [swiping, setSwiping] = useState(false);
+  const lockedAxis = useRef<'x' | 'y' | null>(null);
 
-  function handleTouchStart(e: TouchEvent) {
-    startX.current = e.touches[0].clientX;
-    currentX.current = startX.current;
+  function handlePointerDown(e: PointerEvent<HTMLDivElement>) {
+    // Ignore right-click
+    if (e.button !== 0) return;
+    startX.current = e.clientX;
+    startY.current = e.clientY;
+    lockedAxis.current = null;
     setSwiping(true);
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   }
 
-  function handleTouchMove(e: TouchEvent) {
+  function handlePointerMove(e: PointerEvent<HTMLDivElement>) {
     if (!swiping) return;
-    currentX.current = e.touches[0].clientX;
-    const diff = startX.current - currentX.current;
+    const diffX = startX.current - e.clientX;
+    const diffY = Math.abs(e.clientY - startY.current);
+
+    // Lock axis once movement exceeds threshold
+    if (!lockedAxis.current && (Math.abs(diffX) > 8 || diffY > 8)) {
+      lockedAxis.current = diffY > Math.abs(diffX) ? 'y' : 'x';
+    }
+
+    // If vertical scroll wins, bail out
+    if (lockedAxis.current === 'y') {
+      setSwiping(false);
+      setOffset(0);
+      return;
+    }
+
     // Only allow left swipe
-    if (diff > 0) {
-      setOffset(Math.min(diff, 200));
+    if (diffX > 0) {
+      setOffset(Math.min(diffX, 200));
     }
   }
 
-  function handleTouchEnd() {
+  function handlePointerUp() {
     setSwiping(false);
+    lockedAxis.current = null;
     if (offset > 150) {
       // Auto-delete on large swipe
       setOffset(300);
@@ -59,14 +78,15 @@ export default function SwipeableItem({ children, onDelete }: SwipeableItemProps
 
       {/* Foreground content */}
       <div
-        className="relative bg-white transition-transform"
+        className="relative bg-white touch-pan-y"
         style={{
           transform: `translateX(-${offset}px)`,
           transitionDuration: swiping ? '0ms' : '300ms',
         }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
       >
         {children}
       </div>

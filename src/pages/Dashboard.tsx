@@ -9,13 +9,14 @@ import CategoryPicker from '../components/CategoryPicker';
 import SettingsModal from '../components/SettingsModal';
 import HouseholdSwitcher from '../components/HouseholdSwitcher';
 import { IconSwitch, IconShare, IconCheck, IconSettings, IconPlus, IconEdit, IconTrash, IconDragHandle } from '../components/Icons';
+import { shareOrCopy } from '../lib/share';
 
 export default function Dashboard() {
   const { householdId, userHouseholds, leaveHousehold, switchHousehold, clearHousehold } = useHouseholdContext();
   const { user, signOut } = useAuth();
   const {
     data, loading, error, addList, deleteList, renameList, setListIcon, setListCategory,
-    reorderLists, renameHousehold, setHouseholdIcon, promoteToAdmin, demoteFromAdmin, removeMember, addCategory,
+    reorderLists, renameHousehold, setHouseholdIcon, promoteToAdmin, demoteFromAdmin, removeMember, addCategory, removeCategory,
   } = useHousehold(householdId);
   const navigate = useNavigate();
 
@@ -43,26 +44,17 @@ export default function Dashboard() {
 
   async function handleShare() {
     if (!householdId) return;
-    const shareData = {
-      title: data?.name || 'Our Shopping List',
-      text: `Join my household "${data?.name || 'Our Shopping List'}" on Our Shopping List!`,
-      url: inviteLink,
-    };
-    if (navigator.share) {
-      try { await navigator.share(shareData); return; } catch { /* cancelled */ }
-    }
-    try {
-      await navigator.clipboard.writeText(inviteLink);
-    } catch {
-      const el = document.createElement('textarea');
-      el.value = inviteLink;
-      document.body.appendChild(el);
-      el.select();
-      document.execCommand('copy');
-      document.body.removeChild(el);
-    }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    await shareOrCopy(
+      {
+        title: data?.name || 'Our Shopping List',
+        text: `Join my household "${data?.name || 'Our Shopping List'}" on Our Shopping List!`,
+        url: inviteLink,
+      },
+      () => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      },
+    );
   }
 
   // ---- Drag-and-drop state for list reordering ----
@@ -387,6 +379,7 @@ export default function Dashboard() {
                 onChange={(e) => setNewListName(e.target.value)}
                 placeholder="e.g. Costco, Pharmacy…"
                 autoFocus
+                maxLength={60}
                 className="flex-1 px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[16px] placeholder:text-ios-secondary/50 focus:outline-none focus:ring-2 focus:ring-ios-blue/30"
               />
             </div>
@@ -435,6 +428,7 @@ export default function Dashboard() {
                 value={renameValue}
                 onChange={(e) => setRenameValue(e.target.value)}
                 autoFocus
+                maxLength={60}
                 className="flex-1 px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[16px] focus:outline-none focus:ring-2 focus:ring-ios-blue/30"
               />
             </div>
@@ -490,6 +484,7 @@ export default function Dashboard() {
           promoteToAdmin={promoteToAdmin}
           demoteFromAdmin={demoteFromAdmin}
           removeMember={removeMember}
+          removeCategory={removeCategory}
           signOut={signOut}
         />
       )}
