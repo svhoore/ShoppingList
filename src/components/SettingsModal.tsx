@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import type { User } from 'firebase/auth';
 import type { HouseholdData } from '../hooks/useHousehold';
 import ConfirmDialog from './ConfirmDialog';
+import HouseholdIconPicker from './HouseholdIconPicker';
 import { IconX } from './Icons';
 
 interface SettingsModalProps {
@@ -12,6 +13,7 @@ interface SettingsModalProps {
   onClose: () => void;
   onLeave: () => Promise<void>;
   renameHousehold: (name: string) => Promise<void>;
+  setHouseholdIcon: (dataUrl: string | null) => Promise<void>;
   promoteToAdmin: (uid: string) => Promise<void>;
   demoteFromAdmin: (uid: string) => Promise<void>;
   removeMember: (uid: string) => Promise<void>;
@@ -20,7 +22,7 @@ interface SettingsModalProps {
 
 export default function SettingsModal({
   data, user, isAdmin, inviteLink, onClose, onLeave,
-  renameHousehold, promoteToAdmin, demoteFromAdmin, removeMember, signOut,
+  renameHousehold, setHouseholdIcon, promoteToAdmin, demoteFromAdmin, removeMember, signOut,
 }: SettingsModalProps) {
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(data?.name || '');
@@ -119,6 +121,14 @@ export default function SettingsModal({
                 </div>
               )}
             </div>
+
+            {/* Household Icon (Admin only) */}
+            {isAdmin && (
+              <HouseholdIconPicker
+                currentIcon={data?.icon}
+                onSave={setHouseholdIcon}
+              />
+            )}
 
             {/* Invite Link (Admin only) */}
             {isAdmin && (

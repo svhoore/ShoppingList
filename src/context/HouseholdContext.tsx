@@ -26,6 +26,7 @@ import { generateInviteCode, normalizeInviteCode } from '../lib/utils';
 export interface HouseholdSummary {
   id: string;
   name: string;
+  icon?: string;
 }
 
 export interface MemberInfo {
@@ -85,6 +86,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
       const list: HouseholdSummary[] = snap.docs.map((d) => ({
         id: d.id,
         name: (d.data().name as string) || d.id,
+        icon: (d.data().icon as string) || undefined,
       }));
       setUserHouseholds(list);
 

@@ -26,7 +26,13 @@ export default function HouseholdSwitcher({
                 h.id === householdId ? 'bg-ios-blue/10 border border-ios-blue/20' : 'bg-ios-bg active:bg-gray-200'
               }`}
             >
-              <div className="w-10 h-10 bg-ios-blue/10 rounded-xl flex items-center justify-center text-lg">🏠</div>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0 overflow-hidden bg-ios-blue/10">
+                {h.icon ? (
+                  <img src={h.icon} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <span>🏠</span>
+                )}
+              </div>
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-ios-text text-[15px] truncate">{h.name}</p>
               </div>

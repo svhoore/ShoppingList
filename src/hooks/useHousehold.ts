@@ -44,6 +44,7 @@ export interface ShoppingList {
 
 export interface HouseholdData {
   name: string;
+  icon?: string;
   lists: ShoppingList[];
   members: string[];
   admins: string[];
@@ -80,6 +81,7 @@ export function useHousehold(householdId: string | null) {
           }));
           setData({
             name: raw.name || '',
+            icon: raw.icon || undefined,
             lists,
             members: raw.members || [],
             admins: raw.admins || [],
@@ -138,6 +140,17 @@ export function useHousehold(householdId: string | null) {
       const trimmed = newName.trim();
       if (!trimmed) return;
       await updateDoc(getRef(), { name: trimmed });
+    },
+    [getRef],
+  );
+
+  const setHouseholdIcon = useCallback(
+    async (dataUrl: string | null) => {
+      if (dataUrl) {
+        await updateDoc(getRef(), { icon: dataUrl });
+      } else {
+        await updateDoc(getRef(), { icon: deleteField() });
+      }
     },
     [getRef],
   );
@@ -370,6 +383,7 @@ export function useHousehold(householdId: string | null) {
     loading,
     error,
     renameHousehold,
+    setHouseholdIcon,
     promoteToAdmin,
     demoteFromAdmin,
     removeMember,

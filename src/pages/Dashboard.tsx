@@ -15,7 +15,7 @@ export default function Dashboard() {
   const { user, signOut } = useAuth();
   const {
     data, loading, error, addList, deleteList, renameList, setListIcon, setListCategory,
-    reorderLists, renameHousehold, promoteToAdmin, demoteFromAdmin, removeMember, addCategory,
+    reorderLists, renameHousehold, setHouseholdIcon, promoteToAdmin, demoteFromAdmin, removeMember, addCategory,
   } = useHousehold(householdId);
   const navigate = useNavigate();
 
@@ -209,7 +209,11 @@ export default function Dashboard() {
               className="p-1.5 rounded-lg text-ios-secondary active:bg-gray-100 transition-colors flex-shrink-0"
               title="Switch or create household"
             >
-              <IconSwitch />
+              {data?.icon ? (
+                <img src={data.icon} alt="" className="w-7 h-7 rounded-lg object-cover" />
+              ) : (
+                <IconSwitch />
+              )}
             </button>
             <div className="min-w-0">
               <h1 className="text-xl font-bold text-ios-text truncate">{data?.name || 'Our Shopping List'}</h1>
@@ -481,6 +485,7 @@ export default function Dashboard() {
           onClose={() => setShowSettings(false)}
           onLeave={leaveHousehold}
           renameHousehold={renameHousehold}
+          setHouseholdIcon={setHouseholdIcon}
           promoteToAdmin={promoteToAdmin}
           demoteFromAdmin={demoteFromAdmin}
           removeMember={removeMember}
