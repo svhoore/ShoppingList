@@ -22,12 +22,12 @@ export default function Dashboard() {
   const [showAdd, setShowAdd] = useState(false);
   const [newListName, setNewListName] = useState('');
   const [newListIcon, setNewListIcon] = useState('📝');
-  const [newListCategory, setNewListCategory] = useState('Other');
+  const [newListCategory, setNewListCategory] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [renameIcon, setRenameIcon] = useState('📝');
-  const [renameCategory, setRenameCategory] = useState('Other');
+  const [renameCategory, setRenameCategory] = useState('');
   const [copied, setCopied] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showSwitcher, setShowSwitcher] = useState(false);
@@ -147,7 +147,7 @@ export default function Dashboard() {
 
   /** Categories that actually have lists assigned */
   const usedCategories = useMemo(() => {
-    const cats = new Set((data?.lists ?? []).map((l) => l.category || 'Other'));
+    const cats = new Set((data?.lists ?? []).map((l) => l.category).filter(Boolean));
     return allCategories.filter((c) => cats.has(c));
   }, [data?.lists, allCategories]);
 
@@ -155,10 +155,10 @@ export default function Dashboard() {
     e.preventDefault();
     if (!newListName.trim() || submitting) return;
     setSubmitting(true);
-    await addList(newListName, newListIcon, newListCategory);
+    await addList(newListName, newListIcon, newListCategory || undefined);
     setNewListName('');
     setNewListIcon('📝');
-    setNewListCategory('Other');
+    setNewListCategory('');
     setShowAdd(false);
     setSubmitting(false);
   }
@@ -319,8 +319,9 @@ export default function Dashboard() {
                         <div>
                           <h2 className="font-semibold text-ios-text text-[15px]">{list.listName}</h2>
                           <p className="text-xs text-ios-secondary">
-                            <span className="text-ios-blue/70 font-medium">{list.category || 'Other'}</span>
-                            <span className="mx-1">·</span>
+                            {list.category && (
+                              <><span className="text-ios-blue/70 font-medium">{list.category}</span><span className="mx-1">·</span></>
+                            )}
                             {total === 0
                               ? 'No items'
                               : remaining === 0
@@ -337,7 +338,7 @@ export default function Dashboard() {
                             setRenameTarget(list.listName);
                             setRenameValue(list.listName);
                             setRenameIcon(list.icon || '📝');
-                          setRenameCategory(list.category || 'Other');
+                          setRenameCategory(list.category || '');
                           }}
                           className="p-2 rounded-lg text-ios-secondary active:bg-gray-100 transition-colors"
                           title="Rename"
@@ -378,7 +379,7 @@ export default function Dashboard() {
             className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl"
           >
             <h3 className="text-lg font-semibold text-ios-text mb-3">New List</h3>
-            <div className="flex items-start gap-3">
+            <div className="flex items-center gap-3">
               <IconPicker value={newListIcon} onChange={setNewListIcon} />
               <input
                 type="text"
@@ -427,7 +428,7 @@ export default function Dashboard() {
             className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl"
           >
             <h3 className="text-lg font-semibold text-ios-text mb-3">Rename List</h3>
-            <div className="flex items-start gap-3">
+            <div className="flex items-center gap-3">
               <IconPicker value={renameIcon} onChange={setRenameIcon} />
               <input
                 type="text"

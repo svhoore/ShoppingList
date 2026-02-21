@@ -21,19 +21,10 @@ export interface ShoppingItem {
   createdAt: number;
 }
 
-export const DEFAULT_CATEGORIES = [
-  'Groceries',
-  'Household',
-  'Health & Beauty',
-  'Electronics',
-  'Clothing',
-  'Pets',
-  'Office',
-  'Other',
-] as const;
+export const DEFAULT_CATEGORIES: readonly string[] = [];
 
-/** Union of built-in + any custom string category */
-export type ListCategory = (typeof DEFAULT_CATEGORIES)[number] | (string & {});
+/** Category type — purely user-defined */
+export type ListCategory = string;
 
 export interface ShoppingList {
   listName: string;
@@ -76,7 +67,7 @@ export function useHousehold(householdId: string | null) {
           const lists = (raw.lists || []).map((l: ShoppingList) => ({
             ...l,
             icon: l.icon || '📝',
-            category: l.category || 'Other',
+            category: l.category || '',
             items: sortItems(l.items || []),
           }));
           setData({
@@ -183,10 +174,10 @@ export function useHousehold(householdId: string | null) {
   // ---- List operations ----
 
   const addList = useCallback(
-    async (name: string, icon = '📝', category: string = 'Other') => {
+    async (name: string, icon = '📝', category?: string) => {
       const lists = await getLists();
       if (lists.some((l) => l.listName.toLowerCase() === name.toLowerCase())) return;
-      lists.push({ listName: name.trim(), icon, category, items: [] });
+      lists.push({ listName: name.trim(), icon, category: category || '', items: [] });
       await updateDoc(getRef(), { lists });
     },
     [getRef, getLists],

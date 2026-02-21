@@ -51,7 +51,7 @@ export default function CategoryPicker({
           <button
             key={cat}
             type="button"
-            onClick={() => onChange(cat)}
+            onClick={() => onChange(value === cat ? '' : cat)}
             className={`px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors ${
               value === cat
                 ? 'bg-ios-blue text-white'
@@ -69,7 +69,7 @@ export default function CategoryPicker({
             className="px-3 py-1.5 rounded-lg text-[13px] font-medium bg-ios-bg text-ios-blue active:bg-ios-blue/10 transition-colors flex items-center gap-1"
           >
             <IconPlus size={14} strokeWidth={2} />
-            New
+            {allCategories.length === 0 ? 'Add category' : 'New'}
           </button>
         )}
       </div>
