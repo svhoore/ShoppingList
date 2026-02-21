@@ -74,6 +74,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return true;
     } catch (e) {
+      console.error('Create household error:', e);
       setError('Failed to create household. Check your connection.');
       setLoading(false);
       return false;
@@ -112,6 +113,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return true;
     } catch (e) {
+      console.error('Join household error:', e);
       setError('Failed to join household. Check your connection.');
       setLoading(false);
       return false;
