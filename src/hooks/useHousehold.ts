@@ -4,9 +4,13 @@ import {
   onSnapshot,
   updateDoc,
   getDoc,
+  arrayUnion,
+  arrayRemove,
+  deleteField,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { v4 as uuidv4 } from 'uuid';
+import type { MemberInfo } from '../context/HouseholdContext';
 
 export interface ShoppingItem {
   id: string;
@@ -38,6 +42,9 @@ export interface ShoppingList {
 export interface HouseholdData {
   name: string;
   lists: ShoppingList[];
+  members: string[];
+  admins: string[];
+  memberInfo: Record<string, MemberInfo>;
 }
 
 /** Sort: active items first (preserving order), then completed (by createdAt) */
@@ -64,17 +71,22 @@ export function useHousehold(householdId: string | null) {
       ref,
       (snap) => {
         if (snap.exists()) {
-          const raw = snap.data() as HouseholdData;
-          // Sort items in every list
-          const lists = (raw.lists || []).map((l) => ({
+          const raw = snap.data();
+          const lists = (raw.lists || []).map((l: ShoppingList) => ({
             ...l,
             icon: l.icon || '📝',
             category: l.category || 'Other',
             items: sortItems(l.items || []),
           }));
-          setData({ name: raw.name || '', lists });
+          setData({
+            name: raw.name || '',
+            lists,
+            members: raw.members || [],
+            admins: raw.admins || [],
+            memberInfo: raw.memberInfo || {},
+          });
         } else {
-          setData({ name: '', lists: [] });
+          setData({ name: '', lists: [], members: [], admins: [], memberInfo: {} });
         }
         setLoading(false);
       },
@@ -95,6 +107,42 @@ export function useHousehold(householdId: string | null) {
     const snap = await getDoc(getRef());
     return snap.exists() ? (snap.data() as HouseholdData).lists || [] : [];
   }, [getRef]);
+
+  // ---- Household operations ----
+
+  const renameHousehold = useCallback(
+    async (newName: string) => {
+      const trimmed = newName.trim();
+      if (!trimmed) return;
+      await updateDoc(getRef(), { name: trimmed });
+    },
+    [getRef],
+  );
+
+  const promoteToAdmin = useCallback(
+    async (uid: string) => {
+      await updateDoc(getRef(), { admins: arrayUnion(uid) });
+    },
+    [getRef],
+  );
+
+  const demoteFromAdmin = useCallback(
+    async (uid: string) => {
+      await updateDoc(getRef(), { admins: arrayRemove(uid) });
+    },
+    [getRef],
+  );
+
+  const removeMember = useCallback(
+    async (uid: string) => {
+      await updateDoc(getRef(), {
+        members: arrayRemove(uid),
+        admins: arrayRemove(uid),
+        [`memberInfo.${uid}`]: deleteField(),
+      });
+    },
+    [getRef],
+  );
 
   // ---- List operations ----
 
@@ -252,6 +300,10 @@ export function useHousehold(householdId: string | null) {
   return {
     data,
     loading,
+    renameHousehold,
+    promoteToAdmin,
+    demoteFromAdmin,
+    removeMember,
     addList,
     renameList,
     deleteList,

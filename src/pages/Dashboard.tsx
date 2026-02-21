@@ -7,9 +7,12 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import IconPicker from '../components/IconPicker';
 
 export default function Dashboard() {
-  const { householdId, leaveHousehold } = useHouseholdContext();
+  const { householdId, userHouseholds, leaveHousehold, switchHousehold } = useHouseholdContext();
   const { user, signOut } = useAuth();
-  const { data, loading, addList, deleteList, renameList, setListIcon, setListCategory, reorderLists } = useHousehold(householdId);
+  const {
+    data, loading, addList, deleteList, renameList, setListIcon, setListCategory,
+    reorderLists, renameHousehold, promoteToAdmin, demoteFromAdmin, removeMember,
+  } = useHousehold(householdId);
   const navigate = useNavigate();
 
   const [showAdd, setShowAdd] = useState(false);
@@ -23,6 +26,14 @@ export default function Dashboard() {
   const [renameCategory, setRenameCategory] = useState<ListCategory>('Other');
   const [showLeave, setShowLeave] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState('');
+  const [showSwitcher, setShowSwitcher] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<string | null>(null);
+
+  const isAdmin = !!(user && data?.admins?.includes(user.uid));
+  const memberCount = data?.members?.length ?? 0;
 
   const inviteLink = householdId
     ? `${window.location.origin}/join/${householdId}`
@@ -35,16 +46,12 @@ export default function Dashboard() {
       text: `Join my household "${data?.name || 'Our Shopping List'}" on Our Shopping List!`,
       url: inviteLink,
     };
-    // Use native share on mobile if available
     if (navigator.share) {
       try {
         await navigator.share(shareData);
         return;
-      } catch {
-        // User cancelled or share failed — fall through to clipboard
-      }
+      } catch { /* cancelled */ }
     }
-    // Fallback: copy link to clipboard
     try {
       await navigator.clipboard.writeText(inviteLink);
     } catch {
@@ -57,6 +64,21 @@ export default function Dashboard() {
     }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function handleSaveName(e: FormEvent) {
+    e.preventDefault();
+    if (nameInput.trim()) {
+      await renameHousehold(nameInput);
+      setEditingName(false);
+    }
+  }
+
+  async function handleRemoveMember() {
+    if (removeTarget) {
+      await removeMember(removeTarget);
+      setRemoveTarget(null);
+    }
   }
 
   // ---- Drag-and-drop state for list reordering ----
@@ -179,47 +201,60 @@ export default function Dashboard() {
       {/* Header */}
       <div className="bg-white/80 backdrop-blur-xl sticky top-0 z-10 border-b border-gray-200/60">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-ios-text">{data?.name || 'Our Shopping List'}</h1>
-            <p className="text-xs text-ios-secondary">
-              {user?.displayName?.split(' ')[0] || user?.email}
-            </p>
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            {userHouseholds.length > 1 && (
+              <button
+                onClick={() => setShowSwitcher(true)}
+                className="p-1.5 rounded-lg text-ios-secondary active:bg-gray-100 transition-colors flex-shrink-0"
+                title="Switch household"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+            )}
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-ios-text truncate">{data?.name || 'Our Shopping List'}</h1>
+              <p className="text-xs text-ios-secondary">
+                {memberCount} member{memberCount !== 1 ? 's' : ''} · {user?.displayName?.split(' ')[0] || user?.email}
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {isAdmin && (
+              <button
+                onClick={handleShare}
+                className="text-xs text-ios-blue px-2.5 py-1.5 rounded-lg bg-ios-blue/10 active:bg-ios-blue/20 transition-colors font-medium flex items-center gap-1"
+                title="Share invite link"
+              >
+                {copied ? (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8" />
+                      <polyline points="16 6 12 2 8 6" />
+                      <line x1="12" y1="2" x2="12" y2="15" />
+                    </svg>
+                    Invite
+                  </>
+                )}
+              </button>
+            )}
             <button
-              onClick={handleShare}
-              className="text-xs text-ios-blue px-3 py-1.5 rounded-lg bg-ios-blue/10 active:bg-ios-blue/20 transition-colors font-medium flex items-center gap-1"
-              title="Share invite link"
+              onClick={() => { setShowSettings(true); setNameInput(data?.name || ''); setEditingName(false); }}
+              className="p-2 rounded-lg text-ios-secondary active:bg-gray-100 transition-colors"
+              title="Household settings"
             >
-              {copied ? (
-                <>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                  Copied!
-                </>
-              ) : (
-                <>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8" />
-                    <polyline points="16 6 12 2 8 6" />
-                    <line x1="12" y1="2" x2="12" y2="15" />
-                  </svg>
-                  Invite
-                </>
-              )}
-            </button>
-            <button
-              onClick={signOut}
-              className="text-xs text-ios-secondary px-3 py-1.5 rounded-lg bg-gray-100 active:bg-gray-200 transition-colors font-medium"
-            >
-              Sign out
-            </button>
-            <button
-              onClick={() => setShowLeave(true)}
-              className="text-xs text-ios-red px-3 py-1.5 rounded-lg bg-ios-red/10 active:bg-ios-red/20 transition-colors font-medium"
-            >
-              Leave
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
+              </svg>
             </button>
           </div>
         </div>
@@ -450,6 +485,225 @@ export default function Dashboard() {
         }}
         onCancel={() => setShowLeave(false)}
       />
+
+      {/* Remove Member Confirm */}
+      <ConfirmDialog
+        open={!!removeTarget}
+        title="Remove Member"
+        message={`Remove ${data?.memberInfo?.[removeTarget || '']?.displayName || 'this member'} from the household?`}
+        confirmLabel="Remove"
+        onConfirm={handleRemoveMember}
+        onCancel={() => setRemoveTarget(null)}
+      />
+
+      {/* Household Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowSettings(false)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-xl max-h-[85vh] overflow-y-auto">
+            {/* Header */}
+            <div className="sticky top-0 bg-white rounded-t-2xl p-5 pb-3 border-b border-gray-100">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-ios-text">Household Settings</h3>
+                <button
+                  onClick={() => setShowSettings(false)}
+                  className="p-1 rounded-lg text-ios-secondary active:bg-gray-100"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-5 space-y-5">
+              {/* Household Name */}
+              <div>
+                <label className="block text-xs font-medium text-ios-secondary uppercase tracking-wide mb-2">
+                  Household Name
+                </label>
+                {editingName ? (
+                  <form onSubmit={handleSaveName} className="flex gap-2">
+                    <input
+                      type="text"
+                      value={nameInput}
+                      onChange={(e) => setNameInput(e.target.value)}
+                      autoFocus
+                      className="flex-1 px-4 py-2.5 bg-ios-bg rounded-xl text-ios-text text-[15px] focus:outline-none focus:ring-2 focus:ring-ios-blue/30"
+                    />
+                    <button type="submit" disabled={!nameInput.trim()} className="px-4 py-2.5 rounded-xl bg-ios-blue text-white text-sm font-medium disabled:opacity-40">
+                      Save
+                    </button>
+                    <button type="button" onClick={() => setEditingName(false)} className="px-3 py-2.5 rounded-xl bg-ios-bg text-ios-secondary text-sm font-medium">
+                      ✕
+                    </button>
+                  </form>
+                ) : (
+                  <div className="flex items-center justify-between px-4 py-2.5 bg-ios-bg rounded-xl">
+                    <span className="text-ios-text text-[15px] font-medium">{data?.name || 'Untitled'}</span>
+                    {isAdmin && (
+                      <button
+                        onClick={() => { setNameInput(data?.name || ''); setEditingName(true); }}
+                        className="text-ios-blue text-sm font-medium"
+                      >
+                        Edit
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Invite Link (Admin only) */}
+              {isAdmin && (
+                <div>
+                  <label className="block text-xs font-medium text-ios-secondary uppercase tracking-wide mb-2">
+                    Invite Link
+                  </label>
+                  <div className="flex gap-2">
+                    <div className="flex-1 px-4 py-2.5 bg-ios-bg rounded-xl text-ios-secondary text-[13px] font-mono truncate">
+                      {inviteLink}
+                    </div>
+                    <button
+                      onClick={handleShare}
+                      className="px-4 py-2.5 rounded-xl bg-ios-blue text-white text-sm font-medium flex-shrink-0"
+                    >
+                      {copied ? '✓' : 'Share'}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-ios-secondary mt-1.5">
+                    Only admins can see and share this link.
+                  </p>
+                </div>
+              )}
+
+              {/* Members List */}
+              <div>
+                <label className="block text-xs font-medium text-ios-secondary uppercase tracking-wide mb-2">
+                  Members ({memberCount})
+                </label>
+                <div className="bg-ios-bg rounded-xl divide-y divide-gray-200/60">
+                  {(data?.members ?? []).map((uid) => {
+                    const info = data?.memberInfo?.[uid];
+                    const isSelf = uid === user?.uid;
+                    const memberIsAdmin = data?.admins?.includes(uid) ?? false;
+                    const adminCount = data?.admins?.length ?? 0;
+
+                    return (
+                      <div key={uid} className="flex items-center gap-3 px-4 py-3">
+                        {/* Avatar */}
+                        <div className="w-9 h-9 bg-ios-blue/15 rounded-full flex items-center justify-center text-ios-blue font-semibold text-sm flex-shrink-0">
+                          {(info?.displayName || '?').charAt(0).toUpperCase()}
+                        </div>
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[14px] font-medium text-ios-text truncate">
+                            {info?.displayName || 'Unknown'}{isSelf ? ' (you)' : ''}
+                          </p>
+                          <p className="text-[12px] text-ios-secondary truncate">{info?.email || uid}</p>
+                        </div>
+                        {/* Role Badge */}
+                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${
+                          memberIsAdmin ? 'bg-ios-blue/15 text-ios-blue' : 'bg-gray-200 text-ios-secondary'
+                        }`}>
+                          {memberIsAdmin ? 'Admin' : 'Member'}
+                        </span>
+                        {/* Admin actions */}
+                        {isAdmin && !isSelf && (
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            {memberIsAdmin ? (
+                              adminCount > 1 && (
+                                <button
+                                  onClick={() => demoteFromAdmin(uid)}
+                                  className="text-[11px] text-ios-secondary px-2 py-1 rounded-lg bg-gray-200 active:bg-gray-300"
+                                  title="Remove admin role"
+                                >
+                                  Demote
+                                </button>
+                              )
+                            ) : (
+                              <button
+                                onClick={() => promoteToAdmin(uid)}
+                                className="text-[11px] text-ios-blue px-2 py-1 rounded-lg bg-ios-blue/10 active:bg-ios-blue/20"
+                                title="Make admin"
+                              >
+                                Admin
+                              </button>
+                            )}
+                            <button
+                              onClick={() => setRemoveTarget(uid)}
+                              className="p-1 rounded-lg text-ios-red active:bg-red-50"
+                              title="Remove member"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18" />
+                                <line x1="6" y1="6" x2="18" y2="18" />
+                              </svg>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="space-y-2 pt-2">
+                <button
+                  onClick={signOut}
+                  className="w-full py-2.5 rounded-xl text-ios-secondary font-medium bg-ios-bg active:bg-gray-200 transition-colors text-[15px]"
+                >
+                  Sign out
+                </button>
+                <button
+                  onClick={() => { setShowSettings(false); setShowLeave(true); }}
+                  className="w-full py-2.5 rounded-xl text-ios-red font-medium bg-ios-red/8 active:bg-ios-red/15 transition-colors text-[15px]"
+                >
+                  Leave Household
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Household Switcher Modal */}
+      {showSwitcher && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowSwitcher(false)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
+            <h3 className="text-lg font-semibold text-ios-text mb-3">Switch Household</h3>
+            <div className="space-y-2">
+              {userHouseholds.map((h) => (
+                <button
+                  key={h.id}
+                  onClick={() => { switchHousehold(h.id); setShowSwitcher(false); }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-colors ${
+                    h.id === householdId ? 'bg-ios-blue/10 border border-ios-blue/20' : 'bg-ios-bg active:bg-gray-200'
+                  }`}
+                >
+                  <div className="w-10 h-10 bg-ios-blue/10 rounded-xl flex items-center justify-center text-lg">🏠</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-ios-text text-[15px] truncate">{h.name}</p>
+                  </div>
+                  {h.id === householdId && (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-ios-blue flex-shrink-0">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => { leaveHousehold(); setShowSwitcher(false); }}
+              className="w-full mt-4 py-2.5 rounded-xl text-ios-blue font-medium bg-ios-bg active:bg-gray-200 transition-colors text-[15px]"
+            >
+              Join / Create Another
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

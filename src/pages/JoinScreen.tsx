@@ -4,7 +4,7 @@ import { useHouseholdContext } from '../context/HouseholdContext';
 import { useAuth } from '../context/AuthContext';
 
 export default function JoinScreen() {
-  const { createHousehold, joinHousehold, error, loading } = useHouseholdContext();
+  const { createHousehold, joinHousehold, switchHousehold, userHouseholds, error, loading } = useHouseholdContext();
   const { user, signOut } = useAuth();
   const { code: urlCode } = useParams<{ code?: string }>();
   const [mode, setMode] = useState<'idle' | 'create' | 'join'>('idle');
@@ -52,6 +52,43 @@ export default function JoinScreen() {
           </p>
         </div>
 
+        {/* Existing Households */}
+        {userHouseholds.length > 0 && (
+          <>
+            <div className="bg-white rounded-2xl shadow-sm p-5 mb-3">
+              <label className="block text-xs font-medium text-ios-secondary uppercase tracking-wide mb-3">
+                Your Households
+              </label>
+              <div className="space-y-2">
+                {userHouseholds.map((h) => (
+                  <button
+                    key={h.id}
+                    onClick={() => switchHousehold(h.id)}
+                    className="w-full flex items-center gap-3 px-4 py-3 bg-ios-bg rounded-xl text-left active:bg-ios-blue/10 transition-colors"
+                  >
+                    <div className="w-10 h-10 bg-ios-blue/10 rounded-xl flex items-center justify-center text-lg">
+                      🏠
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-ios-text text-[15px] truncate">{h.name}</p>
+                      <p className="text-xs text-ios-secondary">Tap to open</p>
+                    </div>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-ios-secondary/40">
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 my-4">
+              <div className="flex-1 h-px bg-gray-200" />
+              <span className="text-xs text-ios-secondary font-medium">OR</span>
+              <div className="flex-1 h-px bg-gray-200" />
+            </div>
+          </>
+        )}
+
         {/* Create Card */}
         <form onSubmit={handleCreate} className="bg-white rounded-2xl shadow-sm p-5 mb-3">
           <label className="block text-xs font-medium text-ios-secondary uppercase tracking-wide mb-2">
@@ -86,7 +123,7 @@ export default function JoinScreen() {
         {/* Join Card */}
         <form onSubmit={handleJoin} className="bg-white rounded-2xl shadow-sm p-5">
           <label className="block text-xs font-medium text-ios-secondary uppercase tracking-wide mb-2">
-            Join with invite code
+            Join with invite link or code
           </label>
           <input
             type="text"
