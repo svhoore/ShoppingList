@@ -5,7 +5,7 @@ import { useHousehold, type ShoppingItem } from '../hooks/useHousehold';
 import SwipeableItem from '../components/SwipeableItem';
 import ConfirmDialog from '../components/ConfirmDialog';
 import ItemRow from '../components/ItemRow';
-import { IconChevronLeft, IconMoreVertical, IconEye, IconEyeOff, IconEdit, IconTrash } from '../components/Icons';
+import { IconHome, IconMoreVertical, IconEye, IconEyeOff, IconEdit, IconTrash } from '../components/Icons';
 
 export default function ListView() {
   const { listName: rawListName } = useParams<{ listName: string }>();
@@ -169,9 +169,10 @@ export default function ListView() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate('/')}
-              className="p-1 -ml-1 text-ios-blue active:opacity-60 transition-opacity"
+              className="p-1.5 -ml-1 text-ios-blue active:opacity-60 transition-opacity rounded-lg"
+              aria-label="Home"
             >
-              <IconChevronLeft />
+              <IconHome />
             </button>
             <h1 className="text-xl font-bold text-ios-text">{listName}</h1>
           </div>
