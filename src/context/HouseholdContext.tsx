@@ -49,6 +49,13 @@ const HouseholdContext = createContext<HouseholdContextValue | null>(null);
 
 const STORAGE_KEY = 'osl_household_id';
 
+/** Best display name from a Firebase user: displayName > email username > email > 'User' */
+function getDisplayName(u: { displayName?: string | null; email?: string | null }): string {
+  if (u.displayName) return u.displayName;
+  if (u.email) return u.email.split('@')[0];
+  return 'User';
+}
+
 export function HouseholdProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [householdId, setHouseholdId] = useState<string | null>(null);
@@ -86,6 +93,18 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem(STORAGE_KEY);
         setHouseholdId(null);
       }
+
+      // Keep memberInfo up-to-date for every household we're in
+      const name = getDisplayName(user);
+      const email = user.email || '';
+      for (const d of snap.docs) {
+        const info = d.data().memberInfo?.[user.uid];
+        if (!info || info.displayName !== name || info.email !== email) {
+          updateDoc(d.ref, {
+            [`memberInfo.${user.uid}`]: { displayName: name, email },
+          }).catch(() => {/* best-effort */});
+        }
+      }
     });
     return unsub;
   }, [user]);
@@ -112,7 +131,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
         admins: [user.uid],
         memberInfo: {
           [user.uid]: {
-            displayName: user.displayName || 'Unknown',
+            displayName: getDisplayName(user),
             email: user.email || '',
           },
         },
@@ -155,7 +174,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
         await updateDoc(ref, {
           members: arrayUnion(user.uid),
           [`memberInfo.${user.uid}`]: {
-            displayName: user.displayName || 'Unknown',
+            displayName: getDisplayName(user),
             email: user.email || '',
           },
         });
