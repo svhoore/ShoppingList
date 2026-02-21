@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useRef, useCallback, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useHouseholdContext } from '../context/HouseholdContext';
 import { useAuth } from '../context/AuthContext';
@@ -9,7 +9,7 @@ import IconPicker from '../components/IconPicker';
 export default function Dashboard() {
   const { householdId, leaveHousehold } = useHouseholdContext();
   const { user, signOut } = useAuth();
-  const { data, loading, addList, deleteList, renameList, setListIcon, setListCategory } = useHousehold(householdId);
+  const { data, loading, addList, deleteList, renameList, setListIcon, setListCategory, reorderLists } = useHousehold(householdId);
   const navigate = useNavigate();
 
   const [showAdd, setShowAdd] = useState(false);
@@ -22,6 +22,76 @@ export default function Dashboard() {
   const [renameIcon, setRenameIcon] = useState('📝');
   const [renameCategory, setRenameCategory] = useState<ListCategory>('Other');
   const [showLeave, setShowLeave] = useState(false);
+
+  // ---- Drag-and-drop state for list reordering ----
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
+  const startYRef = useRef(0);
+  const rowHeightsRef = useRef<number[]>([]);
+  const listContainerRef = useRef<HTMLDivElement>(null);
+
+  const handleDragStart = useCallback((index: number, clientY: number) => {
+    setDragIndex(index);
+    setOverIndex(index);
+    startYRef.current = clientY;
+    if (listContainerRef.current) {
+      const rows = listContainerRef.current.querySelectorAll('[data-list-row]');
+      rowHeightsRef.current = Array.from(rows).map((r) => r.getBoundingClientRect().height + 12); // 12 = space-y-3 gap
+    }
+  }, []);
+
+  const handleDragMove = useCallback((clientY: number) => {
+    if (dragIndex === null) return;
+    const delta = clientY - startYRef.current;
+    let offset = 0;
+    let newIndex = dragIndex;
+    if (delta > 0) {
+      for (let i = dragIndex + 1; i < rowHeightsRef.current.length; i++) {
+        offset += rowHeightsRef.current[i];
+        if (delta > offset - rowHeightsRef.current[i] / 2) newIndex = i;
+        else break;
+      }
+    } else {
+      for (let i = dragIndex - 1; i >= 0; i--) {
+        offset -= rowHeightsRef.current[i];
+        if (delta < offset + rowHeightsRef.current[i] / 2) newIndex = i;
+        else break;
+      }
+    }
+    setOverIndex(newIndex);
+  }, [dragIndex]);
+
+  const handleDragEnd = useCallback(async () => {
+    if (dragIndex !== null && overIndex !== null && dragIndex !== overIndex) {
+      await reorderLists(dragIndex, overIndex);
+    }
+    setDragIndex(null);
+    setOverIndex(null);
+  }, [dragIndex, overIndex, reorderLists]);
+
+  useEffect(() => {
+    if (dragIndex === null) return;
+    const onMove = (e: PointerEvent) => { e.preventDefault(); handleDragMove(e.clientY); };
+    const onUp = () => handleDragEnd();
+    window.addEventListener('pointermove', onMove, { passive: false });
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+  }, [dragIndex, handleDragMove, handleDragEnd]);
+
+  // Compute display order during drag
+  const getDisplayLists = () => {
+    const src = data?.lists ?? [];
+    if (dragIndex === null || overIndex === null || dragIndex === overIndex) return src;
+    const items = [...src];
+    const [moved] = items.splice(dragIndex, 1);
+    items.splice(overIndex, 0, moved);
+    return items;
+  };
 
   async function handleAddList(e: FormEvent) {
     e.preventDefault();
@@ -66,6 +136,7 @@ export default function Dashboard() {
   }
 
   const lists = data?.lists ?? [];
+  const displayLists = getDisplayLists();
 
   return (
     <div className="min-h-dvh bg-ios-bg">
@@ -104,34 +175,55 @@ export default function Dashboard() {
             <p className="text-ios-secondary text-xs mt-1">Tap + to create your first shopping list</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {lists.map((list) => {
+          <div ref={listContainerRef} className="space-y-3">
+            {displayLists.map((list) => {
+              const originalIndex = lists.findIndex((l) => l.listName === list.listName);
+              const isDragging = dragIndex !== null && list.listName === lists[dragIndex]?.listName;
               const remaining = list.items.filter((i) => !i.completed).length;
               const total = list.items.length;
               return (
                 <div
                   key={list.listName}
-                  onClick={() => navigate(`/list/${encodeURIComponent(list.listName)}`)}
-                  className="bg-white rounded-2xl p-4 active:scale-[0.98] transition-transform cursor-pointer shadow-sm"
+                  data-list-row
+                  className={`transition-all duration-150 ${isDragging ? 'opacity-50' : ''}`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-ios-blue/10 rounded-xl flex items-center justify-center text-xl">
-                        {list.icon || '📝'}
+                  <div
+                    onClick={() => { if (dragIndex === null) navigate(`/list/${encodeURIComponent(list.listName)}`); }}
+                    className="bg-white rounded-2xl p-4 active:scale-[0.98] transition-transform cursor-pointer shadow-sm"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {/* Drag Handle */}
+                        <div
+                          onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); handleDragStart(originalIndex, e.clientY); }}
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex-shrink-0 touch-none cursor-grab active:cursor-grabbing p-1 text-ios-secondary/30"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                            <circle cx="9" cy="6" r="2" />
+                            <circle cx="15" cy="6" r="2" />
+                            <circle cx="9" cy="12" r="2" />
+                            <circle cx="15" cy="12" r="2" />
+                            <circle cx="9" cy="18" r="2" />
+                            <circle cx="15" cy="18" r="2" />
+                          </svg>
+                        </div>
+                        <div className="w-10 h-10 bg-ios-blue/10 rounded-xl flex items-center justify-center text-xl">
+                          {list.icon || '📝'}
+                        </div>
+                        <div>
+                          <h2 className="font-semibold text-ios-text text-[15px]">{list.listName}</h2>
+                          <p className="text-xs text-ios-secondary">
+                            <span className="text-ios-blue/70 font-medium">{list.category || 'Other'}</span>
+                            <span className="mx-1">·</span>
+                            {total === 0
+                              ? 'No items'
+                              : remaining === 0
+                                ? `All ${total} done ✓`
+                                : `${remaining} item${remaining !== 1 ? 's' : ''} left`}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h2 className="font-semibold text-ios-text text-[15px]">{list.listName}</h2>
-                        <p className="text-xs text-ios-secondary">
-                          <span className="text-ios-blue/70 font-medium">{list.category || 'Other'}</span>
-                          <span className="mx-1">·</span>
-                          {total === 0
-                            ? 'No items'
-                            : remaining === 0
-                              ? `All ${total} done ✓`
-                              : `${remaining} item${remaining !== 1 ? 's' : ''} left`}
-                        </p>
-                      </div>
-                    </div>
 
                     {/* Action buttons */}
                     <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
@@ -162,6 +254,7 @@ export default function Dashboard() {
                       </button>
                     </div>
                   </div>
+                </div>
                 </div>
               );
             })}

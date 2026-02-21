@@ -220,6 +220,17 @@ export function useHousehold(householdId: string | null) {
     [getRef, getLists],
   );
 
+  const reorderLists = useCallback(
+    async (fromIndex: number, toIndex: number) => {
+      const lists = await getLists();
+      if (fromIndex < 0 || fromIndex >= lists.length || toIndex < 0 || toIndex >= lists.length) return;
+      const [moved] = lists.splice(fromIndex, 1);
+      lists.splice(toIndex, 0, moved);
+      await updateDoc(getRef(), { lists });
+    },
+    [getRef, getLists],
+  );
+
   const reorderItems = useCallback(
     async (listName: string, fromIndex: number, toIndex: number) => {
       const lists = await getLists();
@@ -250,6 +261,7 @@ export function useHousehold(householdId: string | null) {
     activeCount,
     setListIcon,
     setListCategory,
+    reorderLists,
     reorderItems,
   };
 }
