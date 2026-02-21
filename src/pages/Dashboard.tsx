@@ -8,7 +8,7 @@ import IconPicker from '../components/IconPicker';
 import CategoryPicker from '../components/CategoryPicker';
 import SettingsModal from '../components/SettingsModal';
 import HouseholdSwitcher from '../components/HouseholdSwitcher';
-import { IconChevronDown, IconShare, IconCheck, IconSettings, IconPlus, IconEdit, IconTrash, IconDragHandle } from '../components/Icons';
+import { IconSwitch, IconShare, IconCheck, IconSettings, IconPlus, IconEdit, IconTrash, IconDragHandle } from '../components/Icons';
 
 export default function Dashboard() {
   const { householdId, userHouseholds, leaveHousehold, switchHousehold } = useHouseholdContext();
@@ -209,7 +209,7 @@ export default function Dashboard() {
               className="p-1.5 rounded-lg text-ios-secondary active:bg-gray-100 transition-colors flex-shrink-0"
               title="Switch or create household"
             >
-              <IconChevronDown />
+              <IconSwitch />
             </button>
             <div className="min-w-0">
               <h1 className="text-xl font-bold text-ios-text truncate">{data?.name || 'Our Shopping List'}</h1>
