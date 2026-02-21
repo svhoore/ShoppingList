@@ -13,7 +13,7 @@ export default function ListView() {
   const navigate = useNavigate();
 
   const { householdId } = useHouseholdContext();
-  const { data, loading, addItem, toggleItem, deleteItem, editItem, deleteList, renameList, reorderItems, clearCompleted, error } =
+  const { data, loading, addItem, toggleItem, deleteItem, editItem, toggleBonus, deleteList, renameList, reorderItems, clearCompleted, error } =
     useHousehold(householdId);
 
   const [newItemText, setNewItemText] = useState('');
@@ -237,6 +237,7 @@ export default function ListView() {
                     onToggle={() => handleToggle(item)}
                     onEdit={(text) => editItem(listName, item.id, text)}
                     onDelete={() => deleteItem(listName, item.id)}
+                    onToggleBonus={() => toggleBonus(listName, item.id)}
                     onDragStart={(clientY) => handleDragStart(activeItems.findIndex((a) => a.id === item.id), clientY)}
                     isDragging={isDragging}
                   />
@@ -283,6 +284,7 @@ export default function ListView() {
                     onToggle={() => handleToggle(item)}
                     onEdit={(text) => editItem(listName, item.id, text)}
                     onDelete={() => deleteItem(listName, item.id)}
+                    onToggleBonus={() => toggleBonus(listName, item.id)}
                   />
                 </SwipeableItem>
               ))}

@@ -7,11 +7,12 @@ interface ItemRowProps {
   onToggle: () => void;
   onEdit: (text: string) => void;
   onDelete: () => void;
+  onToggleBonus?: () => void;
   onDragStart?: (clientY: number) => void;
   isDragging?: boolean;
 }
 
-export default function ItemRow({ item, onToggle, onEdit, onDelete, onDragStart, isDragging }: ItemRowProps) {
+export default function ItemRow({ item, onToggle, onEdit, onDelete, onToggleBonus, onDragStart, isDragging }: ItemRowProps) {
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState(item.text);
   const editRef = useRef<HTMLInputElement>(null);
@@ -85,7 +86,25 @@ export default function ItemRow({ item, onToggle, onEdit, onDelete, onDragStart,
           }`}
         >
           {item.text}
+          {item.bonus && (
+            <span className="ml-1.5 inline-flex items-center align-middle px-1.5 py-0.5 rounded-md bg-orange-100 text-orange-600 text-[11px] font-bold leading-none uppercase">Bonus</span>
+          )}
         </span>
+      )}
+
+      {/* Bonus toggle */}
+      {!editing && !item.completed && onToggleBonus && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleBonus(); }}
+          className={`px-1.5 py-0.5 rounded-md text-[11px] font-bold uppercase flex-shrink-0 transition-colors ${
+            item.bonus
+              ? 'bg-orange-100 text-orange-600 active:bg-orange-200'
+              : 'bg-gray-100 text-ios-secondary/50 active:bg-gray-200'
+          }`}
+          title={item.bonus ? 'Remove Bonus tag' : 'Mark as Bonus (on sale)'}
+        >
+          {item.bonus ? '🏷️' : '🏷️'}
+        </button>
       )}
 
       {/* Delete button */}

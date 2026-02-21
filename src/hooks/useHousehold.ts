@@ -17,6 +17,7 @@ export interface ShoppingItem {
   id: string;
   text: string;
   completed: boolean;
+  bonus?: boolean;
   createdAt: number;
 }
 
@@ -255,6 +256,18 @@ export function useHousehold(householdId: string | null) {
     [getRef, getLists],
   );
 
+  const toggleBonus = useCallback(
+    (listName: string, itemId: string) =>
+      updateLists((lists) => {
+        const list = lists.find((l) => l.listName === listName);
+        if (!list) return false;
+        const item = list.items.find((i) => i.id === itemId);
+        if (!item) return false;
+        item.bonus = !item.bonus;
+      }, 'Failed to update bonus tag'),
+    [updateLists],
+  );
+
   const activeCount = useCallback(
     (listName: string): number => {
       if (!data) return 0;
@@ -339,6 +352,7 @@ export function useHousehold(householdId: string | null) {
     activeCount,
     setListIcon,
     setListCategory,
+    toggleBonus,
     reorderLists,
     reorderItems,
     clearCompleted,
