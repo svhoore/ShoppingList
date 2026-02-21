@@ -1,4 +1,4 @@
-import { useState, useRef, type FormEvent } from 'react';
+import { useState, useRef, type FormEvent, type KeyboardEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useHouseholdContext } from '../context/HouseholdContext';
 import { useHousehold, type ShoppingItem } from '../hooks/useHousehold';
@@ -11,43 +11,39 @@ export default function ListView() {
   const navigate = useNavigate();
 
   const { householdId } = useHouseholdContext();
-  const { data, loading, addItem, toggleItem, deleteItem, deleteList, renameList } =
+  const { data, loading, addItem, toggleItem, deleteItem, editItem, deleteList, renameList } =
     useHousehold(householdId);
 
   const [newItemText, setNewItemText] = useState('');
-  const [showCompleted, setShowCompleted] = useState(true);
+  const [showCompleted, setShowCompleted] = useState(false);
   const [showDeleteList, setShowDeleteList] = useState(false);
   const [showRename, setShowRename] = useState(false);
+  const [showOptions, setShowOptions] = useState(false);
   const [renameValue, setRenameValue] = useState(listName);
-  const [recentlyToggled, setRecentlyToggled] = useState<Set<string>>(new Set());
-  const inputRef = useRef<HTMLInputElement>(null);
+  const newItemRef = useRef<HTMLInputElement>(null);
 
   const list = data?.lists.find((l) => l.listName === listName);
   const activeItems = list?.items.filter((i) => !i.completed) ?? [];
   const completedItems = list?.items.filter((i) => i.completed) ?? [];
 
-  async function handleAddItem(e: FormEvent) {
-    e.preventDefault();
+  async function handleAddItem(e?: FormEvent) {
+    e?.preventDefault();
     if (!newItemText.trim()) return;
     await addItem(listName, newItemText);
     setNewItemText('');
-    inputRef.current?.focus();
+    newItemRef.current?.focus();
+  }
+
+  function handleAddKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddItem();
+    }
   }
 
   async function handleToggle(item: ShoppingItem) {
-    // Haptic feedback (Android)
     if (navigator.vibrate) navigator.vibrate(10);
-    // Track for animation delay
-    setRecentlyToggled((prev) => new Set(prev).add(item.id));
     await toggleItem(listName, item.id);
-    // Remove from recently-toggled after animation
-    setTimeout(() => {
-      setRecentlyToggled((prev) => {
-        const next = new Set(prev);
-        next.delete(item.id);
-        return next;
-      });
-    }, 800);
   }
 
   async function handleDeleteList() {
@@ -99,120 +95,120 @@ export default function ListView() {
             </button>
             <h1 className="text-xl font-bold text-ios-text">{listName}</h1>
           </div>
-          <div className="flex items-center gap-1">
+          {/* Options button */}
+          <div className="relative">
             <button
-              onClick={() => {
-                setRenameValue(listName);
-                setShowRename(true);
-              }}
+              onClick={() => setShowOptions(!showOptions)}
               className="p-2 rounded-lg text-ios-secondary active:bg-gray-100 transition-colors"
-              title="Rename"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="12" cy="5" r="2" />
+                <circle cx="12" cy="12" r="2" />
+                <circle cx="12" cy="19" r="2" />
               </svg>
             </button>
-            <button
-              onClick={() => setShowDeleteList(true)}
-              className="p-2 rounded-lg text-ios-red active:bg-red-50 transition-colors"
-              title="Delete list"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="3 6 5 6 21 6" />
-                <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
-              </svg>
-            </button>
+
+            {/* Options dropdown */}
+            {showOptions && (
+              <>
+                <div className="fixed inset-0 z-20" onClick={() => setShowOptions(false)} />
+                <div className="absolute right-0 top-full mt-1 z-30 bg-white rounded-xl shadow-lg border border-gray-200/80 overflow-hidden min-w-[200px]">
+                  <button
+                    onClick={() => { setShowCompleted(!showCompleted); setShowOptions(false); }}
+                    className="w-full px-4 py-3 text-left text-[15px] text-ios-text active:bg-gray-50 flex items-center gap-3"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-ios-green">
+                      {showCompleted ? <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></> : <><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" /><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19" /><line x1="1" y1="1" x2="23" y2="23" /></>}
+                    </svg>
+                    {showCompleted ? 'Hide completed' : `Show completed (${completedItems.length})`}
+                  </button>
+                  <div className="border-t border-gray-100" />
+                  <button
+                    onClick={() => { setRenameValue(listName); setShowRename(true); setShowOptions(false); }}
+                    className="w-full px-4 py-3 text-left text-[15px] text-ios-text active:bg-gray-50 flex items-center gap-3"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-ios-blue">
+                      <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                      <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </svg>
+                    Rename list
+                  </button>
+                  <div className="border-t border-gray-100" />
+                  <button
+                    onClick={() => { setShowDeleteList(true); setShowOptions(false); }}
+                    className="w-full px-4 py-3 text-left text-[15px] text-ios-red active:bg-red-50 flex items-center gap-3"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                    </svg>
+                    Delete list
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
 
       {/* Item List */}
-      <div className="flex-1 overflow-y-auto pb-20 max-w-lg mx-auto w-full">
-        {activeItems.length === 0 && completedItems.length === 0 ? (
-          <div className="text-center py-20">
-            <div className="text-5xl mb-4">✨</div>
-            <p className="text-ios-secondary text-sm">No items yet</p>
-            <p className="text-ios-secondary text-xs mt-1">Add your first item below</p>
+      <div className="flex-1 overflow-y-auto max-w-lg mx-auto w-full px-4 pt-4 pb-8">
+        {/* Active Items */}
+        <div className="bg-white rounded-2xl overflow-hidden shadow-sm divide-y divide-gray-100">
+          {activeItems.map((item) => (
+            <SwipeableItem key={item.id} onDelete={() => deleteItem(listName, item.id)}>
+              <ItemRow
+                item={item}
+                onToggle={() => handleToggle(item)}
+                onEdit={(text) => editItem(listName, item.id, text)}
+                onDelete={() => deleteItem(listName, item.id)}
+              />
+            </SwipeableItem>
+          ))}
+
+          {/* Inline add — sits below last item inside the same card */}
+          <div className="flex items-center gap-3 px-4 py-2.5">
+            <div className="w-[22px] h-[22px] rounded-full border-2 border-gray-200 flex-shrink-0" />
+            <input
+              ref={newItemRef}
+              type="text"
+              value={newItemText}
+              onChange={(e) => setNewItemText(e.target.value)}
+              onKeyDown={handleAddKeyDown}
+              placeholder="Add an item…"
+              className="flex-1 text-[15px] text-ios-text placeholder:text-ios-secondary/40 bg-transparent focus:outline-none py-0.5"
+            />
           </div>
-        ) : (
-          <>
-            {/* Active Items */}
-            <div className="bg-white mx-4 mt-4 rounded-2xl overflow-hidden shadow-sm divide-y divide-gray-100">
-              {activeItems.map((item) => (
+        </div>
+
+        {/* Completed Section — hidden by default, toggled via options menu */}
+        {showCompleted && completedItems.length > 0 && (
+          <div className="mt-6">
+            <p className="text-xs font-medium text-ios-secondary uppercase tracking-wide mb-2 px-1">
+              Completed ({completedItems.length})
+            </p>
+            <div className="bg-white rounded-2xl overflow-hidden shadow-sm divide-y divide-gray-100">
+              {completedItems.map((item) => (
                 <SwipeableItem key={item.id} onDelete={() => deleteItem(listName, item.id)}>
                   <ItemRow
                     item={item}
                     onToggle={() => handleToggle(item)}
-                    animating={recentlyToggled.has(item.id)}
+                    onEdit={(text) => editItem(listName, item.id, text)}
+                    onDelete={() => deleteItem(listName, item.id)}
                   />
                 </SwipeableItem>
               ))}
             </div>
-
-            {/* Completed Section */}
-            {completedItems.length > 0 && (
-              <div className="mx-4 mt-6">
-                <button
-                  onClick={() => setShowCompleted(!showCompleted)}
-                  className="flex items-center gap-2 mb-2 px-1"
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className={`text-ios-secondary transition-transform duration-200 ${showCompleted ? 'rotate-90' : ''}`}
-                  >
-                    <polyline points="9 18 15 12 9 6" />
-                  </svg>
-                  <span className="text-sm font-medium text-ios-secondary">
-                    Completed ({completedItems.length})
-                  </span>
-                </button>
-
-                {showCompleted && (
-                  <div className="bg-white rounded-2xl overflow-hidden shadow-sm divide-y divide-gray-100">
-                    {completedItems.map((item) => (
-                      <SwipeableItem key={item.id} onDelete={() => deleteItem(listName, item.id)}>
-                        <ItemRow
-                          item={item}
-                          onToggle={() => handleToggle(item)}
-                          animating={recentlyToggled.has(item.id)}
-                        />
-                      </SwipeableItem>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </>
+          </div>
         )}
-      </div>
 
-      {/* Bottom Input Bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-gray-200/60 safe-bottom">
-        <form onSubmit={handleAddItem} className="max-w-lg mx-auto px-4 py-3 flex gap-3">
-          <input
-            ref={inputRef}
-            type="text"
-            value={newItemText}
-            onChange={(e) => setNewItemText(e.target.value)}
-            placeholder="Add an item…"
-            className="flex-1 px-4 py-2.5 bg-ios-bg rounded-xl text-ios-text text-[16px] placeholder:text-ios-secondary/50 focus:outline-none focus:ring-2 focus:ring-ios-blue/30 transition-shadow"
-          />
-          <button
-            type="submit"
-            disabled={!newItemText.trim()}
-            className="px-5 py-2.5 bg-ios-blue text-white rounded-xl font-semibold text-[15px] disabled:opacity-40 active:opacity-80 transition-opacity"
-          >
-            Add
-          </button>
-        </form>
+        {activeItems.length === 0 && completedItems.length === 0 && (
+          <div className="text-center py-16">
+            <div className="text-5xl mb-4">✨</div>
+            <p className="text-ios-secondary text-sm">No items yet</p>
+            <p className="text-ios-secondary text-xs mt-1">Start typing above to add one</p>
+          </div>
+        )}
       </div>
 
       {/* Rename Modal */}
@@ -268,21 +264,51 @@ export default function ListView() {
 function ItemRow({
   item,
   onToggle,
-  animating,
+  onEdit,
+  onDelete,
 }: {
   item: ShoppingItem;
   onToggle: () => void;
-  animating: boolean;
+  onEdit: (text: string) => void;
+  onDelete: () => void;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [editText, setEditText] = useState(item.text);
+  const editRef = useRef<HTMLInputElement>(null);
+
+  function startEdit() {
+    if (item.completed) return;
+    setEditText(item.text);
+    setEditing(true);
+    setTimeout(() => editRef.current?.focus(), 0);
+  }
+
+  function commitEdit() {
+    setEditing(false);
+    const trimmed = editText.trim();
+    if (trimmed && trimmed !== item.text) {
+      onEdit(trimmed);
+    }
+  }
+
+  function handleEditKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      commitEdit();
+    } else if (e.key === 'Escape') {
+      setEditing(false);
+    }
+  }
+
   return (
     <div
       className={`flex items-center gap-3 px-4 py-3 transition-opacity duration-300 ${
         item.completed ? 'opacity-50' : ''
-      } ${animating ? 'animate-pulse-once' : ''}`}
-      onClick={onToggle}
+      }`}
     >
       {/* Circle Checkbox */}
-      <div
+      <button
+        onClick={onToggle}
         className={`w-[22px] h-[22px] rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all duration-300 ${
           item.completed
             ? 'bg-ios-green border-ios-green'
@@ -294,16 +320,42 @@ function ItemRow({
             <polyline points="20 6 9 17 4 12" />
           </svg>
         )}
-      </div>
+      </button>
 
-      {/* Text */}
-      <span
-        className={`text-[15px] transition-all duration-300 ${
-          item.completed ? 'line-through text-ios-secondary' : 'text-ios-text'
-        }`}
-      >
-        {item.text}
-      </span>
+      {/* Text / Edit input */}
+      {editing ? (
+        <input
+          ref={editRef}
+          type="text"
+          value={editText}
+          onChange={(e) => setEditText(e.target.value)}
+          onBlur={commitEdit}
+          onKeyDown={handleEditKeyDown}
+          className="flex-1 text-[15px] text-ios-text bg-transparent focus:outline-none border-b border-ios-blue/30 py-0.5"
+        />
+      ) : (
+        <span
+          onClick={startEdit}
+          className={`flex-1 text-[15px] transition-all duration-300 ${
+            item.completed ? 'line-through text-ios-secondary' : 'text-ios-text cursor-text'
+          }`}
+        >
+          {item.text}
+        </span>
+      )}
+
+      {/* Delete button */}
+      {!editing && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="p-1.5 rounded-lg text-ios-secondary/40 hover:text-ios-red active:text-ios-red active:bg-red-50 transition-colors flex-shrink-0"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }

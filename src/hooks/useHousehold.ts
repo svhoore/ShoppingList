@@ -154,6 +154,22 @@ export function useHousehold(householdId: string | null) {
     [getRef, getLists],
   );
 
+  const editItem = useCallback(
+    async (listName: string, itemId: string, newText: string) => {
+      const trimmed = newText.trim();
+      if (!trimmed) return;
+      const lists = await getLists();
+      const list = lists.find((l) => l.listName === listName);
+      if (!list) return;
+      const item = list.items.find((i) => i.id === itemId);
+      if (item) {
+        item.text = trimmed;
+        await updateDoc(getRef(), { lists });
+      }
+    },
+    [getRef, getLists],
+  );
+
   const activeCount = useCallback(
     (listName: string): number => {
       if (!data) return 0;
@@ -172,6 +188,7 @@ export function useHousehold(householdId: string | null) {
     addItem,
     toggleItem,
     deleteItem,
+    editItem,
     activeCount,
   };
 }
