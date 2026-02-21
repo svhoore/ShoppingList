@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useHouseholdContext, formatCode } from '../context/HouseholdContext';
+import { useHouseholdContext } from '../context/HouseholdContext';
 import { useAuth } from '../context/AuthContext';
 import { useHousehold, LIST_CATEGORIES, type ListCategory } from '../hooks/useHousehold';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -24,25 +24,39 @@ export default function Dashboard() {
   const [showLeave, setShowLeave] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const inviteCode = householdId ? formatCode(householdId) : '';
+  const inviteLink = householdId
+    ? `${window.location.origin}/join/${householdId}`
+    : '';
 
-  async function handleCopyCode() {
+  async function handleShare() {
     if (!householdId) return;
+    const shareData = {
+      title: data?.name || 'Our Shopping List',
+      text: `Join my household "${data?.name || 'Our Shopping List'}" on Our Shopping List!`,
+      url: inviteLink,
+    };
+    // Use native share on mobile if available
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch {
+        // User cancelled or share failed — fall through to clipboard
+      }
+    }
+    // Fallback: copy link to clipboard
     try {
-      await navigator.clipboard.writeText(inviteCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      await navigator.clipboard.writeText(inviteLink);
     } catch {
-      // Fallback: select + copy
       const el = document.createElement('textarea');
-      el.value = inviteCode;
+      el.value = inviteLink;
       document.body.appendChild(el);
       el.select();
       document.execCommand('copy');
       document.body.removeChild(el);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
     }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   }
 
   // ---- Drag-and-drop state for list reordering ----
@@ -173,9 +187,9 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={handleCopyCode}
+              onClick={handleShare}
               className="text-xs text-ios-blue px-3 py-1.5 rounded-lg bg-ios-blue/10 active:bg-ios-blue/20 transition-colors font-medium flex items-center gap-1"
-              title="Copy invite code"
+              title="Share invite link"
             >
               {copied ? (
                 <>
@@ -428,7 +442,7 @@ export default function Dashboard() {
       <ConfirmDialog
         open={showLeave}
         title="Leave Household"
-        message={`You'll need the invite code (${inviteCode}) to rejoin.`}
+        message="You'll need a new invite link to rejoin."
         confirmLabel="Leave"
         onConfirm={() => {
           leaveHousehold();

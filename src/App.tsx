@@ -59,6 +59,7 @@ function AppRoutes() {
   if (!householdId) {
     return (
       <Routes>
+        <Route path="/join/:code" element={<JoinScreen />} />
         <Route path="*" element={<JoinScreen />} />
       </Routes>
     );
@@ -68,6 +69,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={<Dashboard />} />
       <Route path="/list/:listName" element={<ListView />} />
+      <Route path="/join/:code" element={<Navigate to="/" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

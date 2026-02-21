@@ -1,13 +1,24 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
+import { useParams } from 'react-router-dom';
 import { useHouseholdContext } from '../context/HouseholdContext';
 import { useAuth } from '../context/AuthContext';
 
 export default function JoinScreen() {
   const { createHousehold, joinHousehold, error, loading } = useHouseholdContext();
   const { user, signOut } = useAuth();
+  const { code: urlCode } = useParams<{ code?: string }>();
   const [mode, setMode] = useState<'idle' | 'create' | 'join'>('idle');
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
+
+  // Auto-join when arriving via invite link
+  useEffect(() => {
+    if (urlCode && user && !loading) {
+      setCode(urlCode.toUpperCase());
+      setMode('join');
+      joinHousehold(urlCode).finally(() => setMode('idle'));
+    }
+  }, [urlCode, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
