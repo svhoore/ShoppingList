@@ -3,24 +3,28 @@ import { useNavigate } from 'react-router-dom';
 import { useHouseholdContext } from '../context/HouseholdContext';
 import { useHousehold } from '../hooks/useHousehold';
 import ConfirmDialog from '../components/ConfirmDialog';
+import IconPicker from '../components/IconPicker';
 
 export default function Dashboard() {
   const { householdId, leaveHousehold } = useHouseholdContext();
-  const { data, loading, addList, deleteList, renameList } = useHousehold(householdId);
+  const { data, loading, addList, deleteList, renameList, setListIcon } = useHousehold(householdId);
   const navigate = useNavigate();
 
   const [showAdd, setShowAdd] = useState(false);
   const [newListName, setNewListName] = useState('');
+  const [newListIcon, setNewListIcon] = useState('📝');
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const [renameIcon, setRenameIcon] = useState('📝');
   const [showLeave, setShowLeave] = useState(false);
 
   async function handleAddList(e: FormEvent) {
     e.preventDefault();
     if (!newListName.trim()) return;
-    await addList(newListName);
+    await addList(newListName, newListIcon);
     setNewListName('');
+    setNewListIcon('📝');
     setShowAdd(false);
   }
 
@@ -35,6 +39,11 @@ export default function Dashboard() {
     e.preventDefault();
     if (renameTarget && renameValue.trim()) {
       await renameList(renameTarget, renameValue);
+      // Also update icon if it changed
+      const list = data?.lists.find((l) => l.listName === renameTarget);
+      if (list && list.icon !== renameIcon) {
+        await setListIcon(renameValue.trim(), renameIcon);
+      }
       setRenameTarget(null);
       setRenameValue('');
     }
@@ -89,15 +98,8 @@ export default function Dashboard() {
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-ios-blue/10 rounded-xl flex items-center justify-center">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="text-ios-blue" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="8" y1="6" x2="21" y2="6" />
-                          <line x1="8" y1="12" x2="21" y2="12" />
-                          <line x1="8" y1="18" x2="21" y2="18" />
-                          <line x1="3" y1="6" x2="3.01" y2="6" />
-                          <line x1="3" y1="12" x2="3.01" y2="12" />
-                          <line x1="3" y1="18" x2="3.01" y2="18" />
-                        </svg>
+                      <div className="w-10 h-10 bg-ios-blue/10 rounded-xl flex items-center justify-center text-xl">
+                        {list.icon || '📝'}
                       </div>
                       <div>
                         <h2 className="font-semibold text-ios-text text-[15px]">{list.listName}</h2>
@@ -117,6 +119,7 @@ export default function Dashboard() {
                         onClick={() => {
                           setRenameTarget(list.listName);
                           setRenameValue(list.listName);
+                          setRenameIcon(list.icon || '📝');
                         }}
                         className="p-2 rounded-lg text-ios-secondary active:bg-gray-100 transition-colors"
                         title="Rename"
@@ -165,14 +168,17 @@ export default function Dashboard() {
             className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl"
           >
             <h3 className="text-lg font-semibold text-ios-text mb-3">New List</h3>
-            <input
-              type="text"
-              value={newListName}
-              onChange={(e) => setNewListName(e.target.value)}
-              placeholder="e.g. Costco, Pharmacy…"
-              autoFocus
-              className="w-full px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[16px] placeholder:text-ios-secondary/50 focus:outline-none focus:ring-2 focus:ring-ios-blue/30"
-            />
+            <div className="flex items-start gap-3">
+              <IconPicker value={newListIcon} onChange={setNewListIcon} />
+              <input
+                type="text"
+                value={newListName}
+                onChange={(e) => setNewListName(e.target.value)}
+                placeholder="e.g. Costco, Pharmacy…"
+                autoFocus
+                className="flex-1 px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[16px] placeholder:text-ios-secondary/50 focus:outline-none focus:ring-2 focus:ring-ios-blue/30"
+              />
+            </div>
             <div className="flex gap-3 mt-4">
               <button
                 type="button"
@@ -202,13 +208,16 @@ export default function Dashboard() {
             className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl"
           >
             <h3 className="text-lg font-semibold text-ios-text mb-3">Rename List</h3>
-            <input
-              type="text"
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              autoFocus
-              className="w-full px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[16px] focus:outline-none focus:ring-2 focus:ring-ios-blue/30"
-            />
+            <div className="flex items-start gap-3">
+              <IconPicker value={renameIcon} onChange={setRenameIcon} />
+              <input
+                type="text"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                autoFocus
+                className="flex-1 px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[16px] focus:outline-none focus:ring-2 focus:ring-ios-blue/30"
+              />
+            </div>
             <div className="flex gap-3 mt-4">
               <button
                 type="button"

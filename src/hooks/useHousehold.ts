@@ -17,6 +17,7 @@ export interface ShoppingItem {
 
 export interface ShoppingList {
   listName: string;
+  icon: string;
   items: ShoppingItem[];
 }
 
@@ -24,9 +25,9 @@ export interface HouseholdData {
   lists: ShoppingList[];
 }
 
-/** Sort: active items first (by createdAt), then completed (by createdAt) */
+/** Sort: active items first (preserving order), then completed (by createdAt) */
 function sortItems(items: ShoppingItem[]): ShoppingItem[] {
-  const active = items.filter((i) => !i.completed).sort((a, b) => a.createdAt - b.createdAt);
+  const active = items.filter((i) => !i.completed);
   const done = items.filter((i) => i.completed).sort((a, b) => a.createdAt - b.createdAt);
   return [...active, ...done];
 }
@@ -52,6 +53,7 @@ export function useHousehold(householdId: string | null) {
           // Sort items in every list
           const lists = (raw.lists || []).map((l) => ({
             ...l,
+            icon: l.icon || '📝',
             items: sortItems(l.items || []),
           }));
           setData({ lists });
@@ -81,10 +83,10 @@ export function useHousehold(householdId: string | null) {
   // ---- List operations ----
 
   const addList = useCallback(
-    async (name: string) => {
+    async (name: string, icon = '📝') => {
       const lists = await getLists();
       if (lists.some((l) => l.listName.toLowerCase() === name.toLowerCase())) return;
-      lists.push({ listName: name.trim(), items: [] });
+      lists.push({ listName: name.trim(), icon, items: [] });
       await updateDoc(getRef(), { lists });
     },
     [getRef, getLists],
@@ -179,6 +181,35 @@ export function useHousehold(householdId: string | null) {
     [data],
   );
 
+  const setListIcon = useCallback(
+    async (listName: string, icon: string) => {
+      const lists = await getLists();
+      const list = lists.find((l) => l.listName === listName);
+      if (list) {
+        list.icon = icon;
+        await updateDoc(getRef(), { lists });
+      }
+    },
+    [getRef, getLists],
+  );
+
+  const reorderItems = useCallback(
+    async (listName: string, fromIndex: number, toIndex: number) => {
+      const lists = await getLists();
+      const list = lists.find((l) => l.listName === listName);
+      if (!list) return;
+      // Only reorder within active items
+      const active = list.items.filter((i) => !i.completed);
+      const done = list.items.filter((i) => i.completed);
+      if (fromIndex < 0 || fromIndex >= active.length || toIndex < 0 || toIndex >= active.length) return;
+      const [moved] = active.splice(fromIndex, 1);
+      active.splice(toIndex, 0, moved);
+      list.items = [...active, ...done];
+      await updateDoc(getRef(), { lists });
+    },
+    [getRef, getLists],
+  );
+
   return {
     data,
     loading,
@@ -190,5 +221,7 @@ export function useHousehold(householdId: string | null) {
     deleteItem,
     editItem,
     activeCount,
+    setListIcon,
+    reorderItems,
   };
 }

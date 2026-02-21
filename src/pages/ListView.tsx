@@ -1,4 +1,4 @@
-import { useState, useRef, type FormEvent, type KeyboardEvent } from 'react';
+import { useState, useRef, useCallback, useEffect, type FormEvent, type KeyboardEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useHouseholdContext } from '../context/HouseholdContext';
 import { useHousehold, type ShoppingItem } from '../hooks/useHousehold';
@@ -11,7 +11,7 @@ export default function ListView() {
   const navigate = useNavigate();
 
   const { householdId } = useHouseholdContext();
-  const { data, loading, addItem, toggleItem, deleteItem, editItem, deleteList, renameList } =
+  const { data, loading, addItem, toggleItem, deleteItem, editItem, deleteList, renameList, reorderItems } =
     useHousehold(householdId);
 
   const [newItemText, setNewItemText] = useState('');
@@ -25,6 +25,86 @@ export default function ListView() {
   const list = data?.lists.find((l) => l.listName === listName);
   const activeItems = list?.items.filter((i) => !i.completed) ?? [];
   const completedItems = list?.items.filter((i) => i.completed) ?? [];
+
+  // ---- Drag-and-drop state ----
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
+  const startYRef = useRef(0);
+  const currentYRef = useRef(0);
+  const rowHeightsRef = useRef<number[]>([]);
+  const listContainerRef = useRef<HTMLDivElement>(null);
+
+  // Calculate displayed order during drag
+  const displayItems = (() => {
+    if (dragIndex === null || overIndex === null || dragIndex === overIndex) return activeItems;
+    const items = [...activeItems];
+    const [moved] = items.splice(dragIndex, 1);
+    items.splice(overIndex, 0, moved);
+    return items;
+  })();
+
+  const handleDragStart = useCallback((index: number, clientY: number) => {
+    setDragIndex(index);
+    setOverIndex(index);
+    startYRef.current = clientY;
+    currentYRef.current = clientY;
+    // Capture row heights
+    if (listContainerRef.current) {
+      const rows = listContainerRef.current.querySelectorAll('[data-drag-row]');
+      rowHeightsRef.current = Array.from(rows).map((r) => r.getBoundingClientRect().height);
+    }
+  }, []);
+
+  const handleDragMove = useCallback((clientY: number) => {
+    if (dragIndex === null) return;
+    currentYRef.current = clientY;
+    const delta = clientY - startYRef.current;
+    // Compute which index the item moved to
+    let offset = 0;
+    let newIndex = dragIndex;
+    if (delta > 0) {
+      for (let i = dragIndex + 1; i < rowHeightsRef.current.length; i++) {
+        offset += rowHeightsRef.current[i];
+        if (delta > offset - rowHeightsRef.current[i] / 2) {
+          newIndex = i;
+        } else break;
+      }
+    } else {
+      for (let i = dragIndex - 1; i >= 0; i--) {
+        offset -= rowHeightsRef.current[i];
+        if (delta < offset + rowHeightsRef.current[i] / 2) {
+          newIndex = i;
+        } else break;
+      }
+    }
+    setOverIndex(newIndex);
+  }, [dragIndex]);
+
+  const handleDragEnd = useCallback(async () => {
+    if (dragIndex !== null && overIndex !== null && dragIndex !== overIndex) {
+      await reorderItems(listName, dragIndex, overIndex);
+    }
+    setDragIndex(null);
+    setOverIndex(null);
+  }, [dragIndex, overIndex, listName, reorderItems]);
+
+  // Global pointer/touch listeners for drag
+  useEffect(() => {
+    if (dragIndex === null) return;
+    const onMove = (e: PointerEvent) => {
+      e.preventDefault();
+      handleDragMove(e.clientY);
+    };
+    const onUp = () => handleDragEnd();
+    window.addEventListener('pointermove', onMove, { passive: false });
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+  }, [dragIndex, handleDragMove, handleDragEnd]);
 
   async function handleAddItem(e?: FormEvent) {
     e?.preventDefault();
@@ -154,17 +234,28 @@ export default function ListView() {
       {/* Item List */}
       <div className="flex-1 overflow-y-auto max-w-lg mx-auto w-full px-4 pt-4 pb-8">
         {/* Active Items */}
-        <div className="bg-white rounded-2xl overflow-hidden shadow-sm divide-y divide-gray-100">
-          {activeItems.map((item) => (
-            <SwipeableItem key={item.id} onDelete={() => deleteItem(listName, item.id)}>
-              <ItemRow
-                item={item}
-                onToggle={() => handleToggle(item)}
-                onEdit={(text) => editItem(listName, item.id, text)}
-                onDelete={() => deleteItem(listName, item.id)}
-              />
-            </SwipeableItem>
-          ))}
+        <div ref={listContainerRef} className="bg-white rounded-2xl overflow-hidden shadow-sm divide-y divide-gray-100">
+          {displayItems.map((item) => {
+            const isDragging = dragIndex !== null && item.id === activeItems[dragIndex]?.id;
+            return (
+              <div
+                key={item.id}
+                data-drag-row
+                className={`transition-all duration-150 ${isDragging ? 'opacity-50 bg-ios-blue/5' : ''}`}
+              >
+                <SwipeableItem onDelete={() => deleteItem(listName, item.id)}>
+                  <ItemRow
+                    item={item}
+                    onToggle={() => handleToggle(item)}
+                    onEdit={(text) => editItem(listName, item.id, text)}
+                    onDelete={() => deleteItem(listName, item.id)}
+                    onDragStart={(clientY) => handleDragStart(activeItems.findIndex((a) => a.id === item.id), clientY)}
+                    isDragging={isDragging}
+                  />
+                </SwipeableItem>
+              </div>
+            );
+          })}
 
           {/* Inline add — sits below last item inside the same card */}
           <div className="flex items-center gap-3 px-4 py-2.5">
@@ -266,11 +357,15 @@ function ItemRow({
   onToggle,
   onEdit,
   onDelete,
+  onDragStart,
+  isDragging,
 }: {
   item: ShoppingItem;
   onToggle: () => void;
   onEdit: (text: string) => void;
   onDelete: () => void;
+  onDragStart?: (clientY: number) => void;
+  isDragging?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState(item.text);
@@ -302,10 +397,30 @@ function ItemRow({
 
   return (
     <div
-      className={`flex items-center gap-3 px-4 py-3 transition-opacity duration-300 ${
+      className={`flex items-center gap-2 px-4 py-3 transition-opacity duration-300 ${
         item.completed ? 'opacity-50' : ''
-      }`}
+      } ${isDragging ? 'scale-[1.02]' : ''}`}
     >
+      {/* Drag Handle */}
+      {!item.completed && onDragStart && (
+        <div
+          onPointerDown={(e) => {
+            e.preventDefault();
+            onDragStart(e.clientY);
+          }}
+          className="flex-shrink-0 touch-none cursor-grab active:cursor-grabbing p-1 -ml-1 text-ios-secondary/40"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="9" cy="6" r="2" />
+            <circle cx="15" cy="6" r="2" />
+            <circle cx="9" cy="12" r="2" />
+            <circle cx="15" cy="12" r="2" />
+            <circle cx="9" cy="18" r="2" />
+            <circle cx="15" cy="18" r="2" />
+          </svg>
+        </div>
+      )}
+
       {/* Circle Checkbox */}
       <button
         onClick={onToggle}
