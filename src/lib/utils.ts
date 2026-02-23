@@ -22,8 +22,6 @@ export function sortItems<T extends { completed: boolean; createdAt: number }>(i
   return [...active, ...done];
 }
 
-const PRIORITY_ORDER: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
-
 /**
  * Sort actions: active first (preserving insertion / manual order), then completed (newest first).
  * Active items are NOT re-sorted by priority — this preserves drag-and-drop reorder.
@@ -36,17 +34,4 @@ export function sortActions<T extends { completed: boolean; priority: string; du
     .sort((a, b) => b.createdAt - a.createdAt);
 
   return [...active, ...done];
-}
-
-/** One-time initial sort for actions by priority → due date → createdAt. */
-export function initialSortActions<T extends { priority: string; dueDate: string | null; createdAt: number }>(items: T[]): T[] {
-  return [...items].sort((a, b) => {
-    const pa = PRIORITY_ORDER[a.priority] ?? 3;
-    const pb = PRIORITY_ORDER[b.priority] ?? 3;
-    if (pa !== pb) return pa - pb;
-    if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate);
-    if (a.dueDate) return -1;
-    if (b.dueDate) return 1;
-    return a.createdAt - b.createdAt;
-  });
 }

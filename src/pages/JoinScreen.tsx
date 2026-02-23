@@ -4,6 +4,7 @@ import { useHouseholdContext } from '../context/HouseholdContext';
 import { useAuth } from '../context/AuthContext';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { IconChevronRight, IconShoppingBag } from '../components/Icons';
+import ErrorToast from '../components/ErrorToast';
 
 export default function JoinScreen() {
   const { createHousehold, joinHousehold, switchHousehold, lookupHousehold, userHouseholds, error, loading } = useHouseholdContext();
@@ -156,11 +157,7 @@ export default function JoinScreen() {
           </button>
         </form>
 
-        {error && (
-          <div className="fixed bottom-20 left-4 right-4 z-40 bg-ios-red text-white text-sm font-medium px-4 py-3 rounded-xl shadow-lg text-center">
-            {error}
-          </div>
-        )}
+        <ErrorToast error={error} />
 
         {/* Join confirmation dialog (from invite link) */}
         <ConfirmDialog

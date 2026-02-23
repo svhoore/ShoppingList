@@ -1,13 +1,14 @@
-import { useState, useRef, useCallback, useEffect, useMemo, type FormEvent, type KeyboardEvent } from 'react';
+import { useState, useRef, useMemo, useCallback, type FormEvent, type KeyboardEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useHouseholdContext } from '../context/HouseholdContext';
 import { useHousehold, type ShoppingItem } from '../hooks/useHousehold';
 import SwipeableItem from '../components/SwipeableItem';
 import ConfirmDialog from '../components/ConfirmDialog';
-import IconPicker from '../components/IconPicker';
-import CategoryPicker from '../components/CategoryPicker';
+import ListFormModal from '../components/ListFormModal';
 import ItemRow from '../components/ItemRow';
 import { IconHome, IconMoreVertical, IconEye, IconEyeOff, IconEdit, IconTrash } from '../components/Icons';
+import ErrorToast from '../components/ErrorToast';
+import { useDragReorder } from '../hooks/useDragReorder';
 
 export default function ListView() {
   const { listName: rawListName } = useParams<{ listName: string }>();
@@ -33,15 +34,13 @@ export default function ListView() {
   const activeItems = list?.items.filter((i) => !i.completed) ?? [];
   const completedItems = list?.items.filter((i) => i.completed) ?? [];
 
-  // ---- Drag-and-drop state ----
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const [overIndex, setOverIndex] = useState<number | null>(null);
-  const startYRef = useRef(0);
-  const currentYRef = useRef(0);
-  const rowHeightsRef = useRef<number[]>([]);
-  const listContainerRef = useRef<HTMLDivElement>(null);
+  // ---- Drag-and-drop ----
+  const handleReorder = useCallback(async (from: number, to: number) => {
+    await reorderItems(listName, from, to);
+  }, [listName, reorderItems]);
 
-  // Calculate displayed order during drag
+  const { dragIndex, overIndex, containerRef: listContainerRef, handleDragStart } = useDragReorder('[data-drag-row]', handleReorder);
+
   const displayItems = useMemo(() => {
     if (dragIndex === null || overIndex === null || dragIndex === overIndex) return activeItems;
     const items = [...activeItems];
@@ -49,69 +48,6 @@ export default function ListView() {
     items.splice(overIndex, 0, moved);
     return items;
   }, [activeItems, dragIndex, overIndex]);
-
-  const handleDragStart = useCallback((index: number, clientY: number) => {
-    setDragIndex(index);
-    setOverIndex(index);
-    startYRef.current = clientY;
-    currentYRef.current = clientY;
-    // Capture row heights
-    if (listContainerRef.current) {
-      const rows = listContainerRef.current.querySelectorAll('[data-drag-row]');
-      rowHeightsRef.current = Array.from(rows).map((r) => r.getBoundingClientRect().height);
-    }
-  }, []);
-
-  const handleDragMove = useCallback((clientY: number) => {
-    if (dragIndex === null) return;
-    currentYRef.current = clientY;
-    const delta = clientY - startYRef.current;
-    // Compute which index the item moved to
-    let offset = 0;
-    let newIndex = dragIndex;
-    if (delta > 0) {
-      for (let i = dragIndex + 1; i < rowHeightsRef.current.length; i++) {
-        offset += rowHeightsRef.current[i];
-        if (delta > offset - rowHeightsRef.current[i] / 2) {
-          newIndex = i;
-        } else break;
-      }
-    } else {
-      for (let i = dragIndex - 1; i >= 0; i--) {
-        offset -= rowHeightsRef.current[i];
-        if (delta < offset + rowHeightsRef.current[i] / 2) {
-          newIndex = i;
-        } else break;
-      }
-    }
-    setOverIndex(newIndex);
-  }, [dragIndex]);
-
-  const handleDragEnd = useCallback(async () => {
-    if (dragIndex !== null && overIndex !== null && dragIndex !== overIndex) {
-      await reorderItems(listName, dragIndex, overIndex);
-    }
-    setDragIndex(null);
-    setOverIndex(null);
-  }, [dragIndex, overIndex, listName, reorderItems]);
-
-  // Global pointer/touch listeners for drag
-  useEffect(() => {
-    if (dragIndex === null) return;
-    const onMove = (e: PointerEvent) => {
-      e.preventDefault();
-      handleDragMove(e.clientY);
-    };
-    const onUp = () => handleDragEnd();
-    window.addEventListener('pointermove', onMove, { passive: false });
-    window.addEventListener('pointerup', onUp);
-    window.addEventListener('pointercancel', onUp);
-    return () => {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-      window.removeEventListener('pointercancel', onUp);
-    };
-  }, [dragIndex, handleDragMove, handleDragEnd]);
 
   async function handleAddItem(e?: FormEvent) {
     e?.preventDefault();
@@ -342,57 +278,21 @@ export default function ListView() {
 
       {/* Rename Modal */}
       {showRename && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowRename(false)} />
-          <form
-            onSubmit={handleRename}
-            className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl"
-          >
-            <h3 className="text-lg font-semibold text-ios-text mb-3">Rename List</h3>
-            <div className="flex items-center gap-3">
-              <IconPicker value={renameIcon} onChange={setRenameIcon} />
-              <input
-                type="text"
-                value={renameValue}
-                onChange={(e) => setRenameValue(e.target.value)}
-                autoFocus
-                maxLength={60}
-                className="flex-1 px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[16px] focus:outline-none focus:ring-2 focus:ring-ios-blue/30"
-              />
-            </div>
-            <div className="mt-2 text-xs text-ios-secondary flex items-center gap-2">
-              <span className="text-base leading-none">{renameIcon}</span>
-              <span className="truncate">
-                {(renameValue.trim() || 'List name')}{renameCategory ? ` · ${renameCategory}` : ''}
-              </span>
-            </div>
-            <div className="mt-3">
-              <label className="block text-xs font-medium text-ios-secondary uppercase tracking-wide mb-2">Category</label>
-              <CategoryPicker
-                value={renameCategory}
-                onChange={setRenameCategory}
-                customCategories={data?.customCategories}
-                onAddCategory={addCategory}
-              />
-            </div>
-            <div className="flex gap-3 mt-4">
-              <button
-                type="button"
-                onClick={() => setShowRename(false)}
-                className="flex-1 py-2.5 rounded-xl text-ios-blue font-medium bg-ios-bg active:bg-gray-200 transition-all active:scale-[0.98]"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={!renameValue.trim()}
-                className="flex-1 py-2.5 rounded-xl bg-ios-blue text-white font-semibold disabled:opacity-40 active:scale-[0.98] transition-transform"
-              >
-                Save
-              </button>
-            </div>
-          </form>
-        </div>
+        <ListFormModal
+          title="Rename List"
+          name={renameValue}
+          onNameChange={setRenameValue}
+          icon={renameIcon}
+          onIconChange={setRenameIcon}
+          category={renameCategory}
+          onCategoryChange={setRenameCategory}
+          customCategories={data?.customCategories}
+          onAddCategory={addCategory}
+          submitting={submitting}
+          submitLabel={['Saving…', 'Save']}
+          onSubmit={handleRename}
+          onClose={() => setShowRename(false)}
+        />
       )}
 
       {/* Delete List Confirm */}
@@ -404,12 +304,7 @@ export default function ListView() {
         onCancel={() => setShowDeleteList(false)}
       />
 
-      {/* Error Toast */}
-      {error && (
-        <div className="fixed bottom-20 left-4 right-4 z-40 bg-ios-red text-white text-sm font-medium px-4 py-3 rounded-xl shadow-lg text-center">
-          {error}
-        </div>
-      )}
+      <ErrorToast error={error} />
     </div>
   );
 }

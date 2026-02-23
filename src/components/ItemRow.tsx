@@ -1,5 +1,5 @@
-import { useState, useRef, type KeyboardEvent } from 'react';
 import type { ShoppingItem } from '../hooks/useHousehold';
+import { useInlineEdit } from '../hooks/useInlineEdit';
 import { IconCheck, IconX, IconDragHandle } from './Icons';
 
 interface ItemRowProps {
@@ -14,32 +14,11 @@ interface ItemRowProps {
 }
 
 export default function ItemRow({ item, onToggle, onEdit, onDelete, onToggleBonus, onDragStart, isDragging, hideCheckbox }: ItemRowProps) {
-  const [editing, setEditing] = useState(false);
-  const [editText, setEditText] = useState(item.text);
-  const editRef = useRef<HTMLInputElement>(null);
+  const { isEditing: editing, editText, setEditText, inputRef: editRef, startEdit: rawStartEdit, commitEdit, handleEditKeyDown } = useInlineEdit(item.text, onEdit);
 
   function startEdit() {
     if (item.completed) return;
-    setEditText(item.text);
-    setEditing(true);
-    setTimeout(() => editRef.current?.focus(), 0);
-  }
-
-  function commitEdit() {
-    setEditing(false);
-    const trimmed = editText.trim();
-    if (trimmed && trimmed !== item.text) {
-      onEdit(trimmed);
-    }
-  }
-
-  function handleEditKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      commitEdit();
-    } else if (e.key === 'Escape') {
-      setEditing(false);
-    }
+    rawStartEdit();
   }
 
   return (

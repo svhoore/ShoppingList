@@ -1,15 +1,17 @@
-import { useState, useRef, useCallback, useEffect, useMemo, type FormEvent } from 'react';
+import { useState, useMemo, useCallback, type FormEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useHouseholdContext } from '../context/HouseholdContext';
 import { useAuth } from '../context/AuthContext';
-import { useHousehold, DEFAULT_CATEGORIES } from '../hooks/useHousehold';
+import { useHousehold } from '../hooks/useHousehold';
+import { useListCategories, useActionCategories } from '../hooks/useCategories';
+import { useDragReorder } from '../hooks/useDragReorder';
 import ConfirmDialog from '../components/ConfirmDialog';
-import IconPicker from '../components/IconPicker';
-import CategoryPicker from '../components/CategoryPicker';
+import ListFormModal from '../components/ListFormModal';
 import SettingsModal from '../components/SettingsModal';
 import HouseholdSwitcher from '../components/HouseholdSwitcher';
 import { IconSwitch, IconSettings, IconPlus, IconEdit, IconTrash, IconDragHandle, IconReorder } from '../components/Icons';
 import ActionsTab from '../components/ActionsTab';
+import ErrorToast from '../components/ErrorToast';
 
 export default function Dashboard() {
   const { householdId, userHouseholds, leaveHousehold, switchHousehold, clearHousehold } = useHouseholdContext();
@@ -49,76 +51,20 @@ export default function Dashboard() {
     [householdId],
   );
 
-  // ---- Drag-and-drop state for list reordering ----
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const [overIndex, setOverIndex] = useState<number | null>(null);
-  const startYRef = useRef(0);
-  const rowHeightsRef = useRef<number[]>([]);
-  const listContainerRef = useRef<HTMLDivElement>(null);
-
-  const handleDragStart = useCallback((index: number, clientY: number) => {
-    setDragIndex(index);
-    setOverIndex(index);
-    startYRef.current = clientY;
-    if (listContainerRef.current) {
-      const rows = listContainerRef.current.querySelectorAll('[data-list-row]');
-      rowHeightsRef.current = Array.from(rows).map((r) => r.getBoundingClientRect().height + 12);
-    }
-  }, []);
-
-  const handleDragMove = useCallback((clientY: number) => {
-    if (dragIndex === null) return;
-    const delta = clientY - startYRef.current;
-    let offset = 0;
-    let newIndex = dragIndex;
-    if (delta > 0) {
-      for (let i = dragIndex + 1; i < rowHeightsRef.current.length; i++) {
-        offset += rowHeightsRef.current[i];
-        if (delta > offset - rowHeightsRef.current[i] / 2) newIndex = i;
-        else break;
-      }
+  // ---- Drag-and-drop for list reordering ----
+  const handleListReorder = useCallback(async (fromIdx: number, toIdx: number) => {
+    const allLists = data?.lists ?? [];
+    if (categoryFilter) {
+      const filtered = allLists.filter((l) => l.category === categoryFilter);
+      const fromFull = allLists.findIndex((l) => l.listName === filtered[fromIdx]?.listName);
+      const toFull = allLists.findIndex((l) => l.listName === filtered[toIdx]?.listName);
+      if (fromFull !== -1 && toFull !== -1) await reorderLists(fromFull, toFull);
     } else {
-      for (let i = dragIndex - 1; i >= 0; i--) {
-        offset -= rowHeightsRef.current[i];
-        if (delta < offset + rowHeightsRef.current[i] / 2) newIndex = i;
-        else break;
-      }
+      await reorderLists(fromIdx, toIdx);
     }
-    setOverIndex(newIndex);
-  }, [dragIndex]);
+  }, [data?.lists, categoryFilter, reorderLists]);
 
-  const handleDragEnd = useCallback(async () => {
-    if (dragIndex !== null && overIndex !== null && dragIndex !== overIndex) {
-      // Map display indices back to full-array indices when a category filter is active
-      const allLists = data?.lists ?? [];
-      if (categoryFilter) {
-        const filtered = allLists.filter((l) => l.category === categoryFilter);
-        const fromFull = allLists.findIndex((l) => l.listName === filtered[dragIndex]?.listName);
-        const toFull = allLists.findIndex((l) => l.listName === filtered[overIndex]?.listName);
-        if (fromFull !== -1 && toFull !== -1) {
-          await reorderLists(fromFull, toFull);
-        }
-      } else {
-        await reorderLists(dragIndex, overIndex);
-      }
-    }
-    setDragIndex(null);
-    setOverIndex(null);
-  }, [dragIndex, overIndex, data?.lists, categoryFilter, reorderLists]);
-
-  useEffect(() => {
-    if (dragIndex === null) return;
-    const onMove = (e: PointerEvent) => { e.preventDefault(); handleDragMove(e.clientY); };
-    const onUp = () => handleDragEnd();
-    window.addEventListener('pointermove', onMove, { passive: false });
-    window.addEventListener('pointerup', onUp);
-    window.addEventListener('pointercancel', onUp);
-    return () => {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-      window.removeEventListener('pointercancel', onUp);
-    };
-  }, [dragIndex, handleDragMove, handleDragEnd]);
+  const { dragIndex, overIndex, containerRef: listContainerRef, handleDragStart } = useDragReorder('[data-list-row]', handleListReorder, 12);
 
   const displayLists = useMemo(() => {
     let src = data?.lists ?? [];
@@ -132,32 +78,8 @@ export default function Dashboard() {
     return items;
   }, [data?.lists, dragIndex, overIndex, categoryFilter]);
 
-  const allCategories = useMemo(() => {
-    const custom = data?.customCategories ?? [];
-    return [
-      ...DEFAULT_CATEGORIES,
-      ...custom.filter((c) => !(DEFAULT_CATEGORIES as readonly string[]).includes(c)),
-    ];
-  }, [data?.customCategories]);
-
-  /** Categories that actually have lists assigned */
-  const usedCategories = useMemo(() => {
-    const cats = new Set((data?.lists ?? []).map((l) => l.category).filter(Boolean));
-    return allCategories.filter((c) => cats.has(c));
-  }, [data?.lists, allCategories]);
-
-  const allActionCategories = useMemo(() => {
-    const custom = data?.customActionCategories ?? [];
-    return [
-      ...DEFAULT_CATEGORIES,
-      ...custom.filter((c) => !(DEFAULT_CATEGORIES as readonly string[]).includes(c)),
-    ];
-  }, [data?.customActionCategories]);
-
-  const usedActionCategories = useMemo(() => {
-    const cats = new Set((data?.actionLists ?? []).map((al) => al.category).filter(Boolean));
-    return allActionCategories.filter((c) => cats.has(c));
-  }, [data?.actionLists, allActionCategories]);
+  const { usedCategories } = useListCategories(data);
+  const { allActionCategories, usedActionCategories } = useActionCategories(data);
 
   async function handleAddList(e: FormEvent) {
     e.preventDefault();
@@ -266,7 +188,7 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <button
-              onClick={() => { setReorderMode(!reorderMode); if (reorderMode) { setDragIndex(null); setOverIndex(null); } }}
+              onClick={() => setReorderMode(!reorderMode)}
               className={`p-3 rounded-lg transition-colors ${reorderMode ? 'text-ios-blue bg-ios-blue/10' : 'text-ios-secondary active:bg-gray-100'}`}
               title={reorderMode ? 'Done reordering' : 'Reorder lists'}
             >
@@ -480,129 +402,58 @@ export default function Dashboard() {
 
       {/* Add List Modal */}
       {showAdd && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowAdd(false)} />
-          <form
-            onSubmit={handleAddList}
-            className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl"
-          >
-            <h3 className="text-lg font-semibold text-ios-text mb-3">New List</h3>
-            <div className="flex items-center gap-3">
-              <IconPicker value={newListIcon} onChange={setNewListIcon} />
-              <input
-                type="text"
-                value={newListName}
-                onChange={(e) => setNewListName(e.target.value)}
-                placeholder="e.g. Costco, Pharmacy…"
-                autoFocus
-                maxLength={60}
-                className="flex-1 px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[16px] placeholder:text-ios-secondary/50 focus:outline-none focus:ring-2 focus:ring-ios-blue/30"
-              />
-            </div>
-            <div className="mt-2 text-xs text-ios-secondary flex items-center gap-2">
-              <span className="text-base leading-none">{newListIcon}</span>
-              <span className="truncate">
-                {(newListName.trim() || 'List name')}{newListCategory ? ` · ${newListCategory}` : ''}
-              </span>
-            </div>
-            <div className="mt-3">
-              <label className="block text-xs font-medium text-ios-secondary uppercase tracking-wide mb-2">Category</label>
-              <CategoryPicker
-                value={newListCategory}
-                onChange={(cat) => setNewListCategory(cat)}
-                customCategories={data?.customCategories}
-                onAddCategory={addCategory}
-              />
-            </div>
-            <div className="flex gap-3 mt-4">
-              <button
-                type="button"
-                onClick={() => setShowAdd(false)}
-                className="flex-1 py-2.5 rounded-xl text-ios-blue font-medium bg-ios-bg active:bg-gray-200 transition-all active:scale-[0.98]"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={!newListName.trim() || submitting}
-                className="flex-1 py-2.5 rounded-xl bg-ios-blue text-white font-semibold disabled:opacity-40 active:scale-[0.98] transition-transform"
-              >
-                {submitting ? 'Creating…' : 'Create'}
-              </button>
-            </div>
-          </form>
-        </div>
+        <ListFormModal
+          title="New List"
+          name={newListName}
+          onNameChange={setNewListName}
+          icon={newListIcon}
+          onIconChange={setNewListIcon}
+          category={newListCategory}
+          onCategoryChange={setNewListCategory}
+          customCategories={data?.customCategories}
+          onAddCategory={addCategory}
+          placeholder="e.g. Costco, Pharmacy…"
+          submitting={submitting}
+          submitLabel={['Creating…', 'Create']}
+          onSubmit={handleAddList}
+          onClose={() => setShowAdd(false)}
+        />
       )}
 
       {/* Rename Modal */}
       {renameTarget && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setRenameTarget(null)} />
-          <form
-            onSubmit={handleRenameList}
-            className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl"
-          >
-            <h3 className="text-lg font-semibold text-ios-text mb-3">Rename List</h3>
-            <div className="flex items-center gap-3">
-              <IconPicker value={renameIcon} onChange={setRenameIcon} />
-              <input
-                type="text"
-                value={renameValue}
-                onChange={(e) => setRenameValue(e.target.value)}
-                autoFocus
-                maxLength={60}
-                className="flex-1 px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[16px] focus:outline-none focus:ring-2 focus:ring-ios-blue/30"
-              />
-            </div>
-            <div className="mt-2 text-xs text-ios-secondary flex items-center gap-2">
-              <span className="text-base leading-none">{renameIcon}</span>
-              <span className="truncate">
-                {(renameValue.trim() || 'List name')}{renameCategory ? ` · ${renameCategory}` : ''}
-              </span>
-            </div>
-            <div className="mt-3">
-              <label className="block text-xs font-medium text-ios-secondary uppercase tracking-wide mb-2">Category</label>
-              <CategoryPicker
-                value={renameCategory}
-                onChange={(cat) => setRenameCategory(cat)}
-                customCategories={data?.customCategories}
-                onAddCategory={addCategory}
-              />
-            </div>
-            <div className="mt-3 flex items-center justify-between">
-              <label className="text-sm font-medium text-ios-text">🏷️ Enable Bonus tag</label>
-              <button
-                type="button"
-                onClick={() => setRenameBonusEnabled(!renameBonusEnabled)}
-                className={`relative w-[51px] h-[31px] rounded-full transition-colors duration-200 ${
-                  renameBonusEnabled ? 'bg-ios-green' : 'bg-gray-200'
+        <ListFormModal
+          title="Rename List"
+          name={renameValue}
+          onNameChange={setRenameValue}
+          icon={renameIcon}
+          onIconChange={setRenameIcon}
+          category={renameCategory}
+          onCategoryChange={setRenameCategory}
+          customCategories={data?.customCategories}
+          onAddCategory={addCategory}
+          submitting={submitting}
+          submitLabel={['Saving…', 'Save']}
+          onSubmit={handleRenameList}
+          onClose={() => setRenameTarget(null)}
+        >
+          <div className="mt-3 flex items-center justify-between">
+            <label className="text-sm font-medium text-ios-text">🏷️ Enable Bonus tag</label>
+            <button
+              type="button"
+              onClick={() => setRenameBonusEnabled(!renameBonusEnabled)}
+              className={`relative w-[51px] h-[31px] rounded-full transition-colors duration-200 ${
+                renameBonusEnabled ? 'bg-ios-green' : 'bg-gray-200'
+              }`}
+            >
+              <span
+                className={`absolute top-[2px] left-[2px] w-[27px] h-[27px] bg-white rounded-full shadow-md transition-transform duration-200 ${
+                  renameBonusEnabled ? 'translate-x-[20px]' : ''
                 }`}
-              >
-                <span
-                  className={`absolute top-[2px] left-[2px] w-[27px] h-[27px] bg-white rounded-full shadow-md transition-transform duration-200 ${
-                    renameBonusEnabled ? 'translate-x-[20px]' : ''
-                  }`}
-                />
-              </button>
-            </div>
-            <div className="flex gap-3 mt-4">
-              <button
-                type="button"
-                onClick={() => setRenameTarget(null)}
-                className="flex-1 py-2.5 rounded-xl text-ios-blue font-medium bg-ios-bg active:bg-gray-200 transition-all active:scale-[0.98]"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={!renameValue.trim() || submitting}
-                className="flex-1 py-2.5 rounded-xl bg-ios-blue text-white font-semibold disabled:opacity-40 active:scale-[0.98] transition-transform"
-              >
-                {submitting ? 'Saving…' : 'Save'}
-              </button>
-            </div>
-          </form>
-        </div>
+              />
+            </button>
+          </div>
+        </ListFormModal>
       )}
 
       {/* Delete Confirm */}
@@ -645,12 +496,7 @@ export default function Dashboard() {
         />
       )}
 
-      {/* Error Toast */}
-      {error && (
-        <div className="fixed bottom-20 left-4 right-4 z-40 bg-ios-red text-white text-sm font-medium px-4 py-3 rounded-xl shadow-lg text-center">
-          {error}
-        </div>
-      )}
+      <ErrorToast error={error} />
     </div>
   );
 }

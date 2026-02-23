@@ -1,6 +1,6 @@
-import { useState, useRef, type KeyboardEvent } from 'react';
 import type { ActionItem } from '../hooks/useHousehold';
 import type { MemberInfo } from '../context/HouseholdContext';
+import { useInlineEdit } from '../hooks/useInlineEdit';
 import { IconCheck, IconX, IconDragHandle } from './Icons';
 
 const PRIORITY_STYLES: Record<string, string> = {
@@ -49,28 +49,11 @@ function getInitials(name: string): string {
 }
 
 export default function ActionRow({ action, memberInfo, onToggle, onEdit, onDelete, onTap, onDragStart, isDragging, hideCheckbox }: ActionRowProps) {
-  const [editing, setEditing] = useState(false);
-  const [editText, setEditText] = useState(action.text);
-  const editRef = useRef<HTMLInputElement>(null);
+  const { isEditing: editing, editText, setEditText, inputRef: editRef, startEdit: rawStartEdit, commitEdit, handleEditKeyDown } = useInlineEdit(action.text, onEdit);
 
   function startEdit() {
     if (action.completed) return;
-    setEditText(action.text);
-    setEditing(true);
-    setTimeout(() => editRef.current?.focus(), 0);
-  }
-
-  function commitEdit() {
-    setEditing(false);
-    const trimmed = editText.trim();
-    if (trimmed && trimmed !== action.text) {
-      onEdit(trimmed);
-    }
-  }
-
-  function handleEditKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter') { e.preventDefault(); commitEdit(); }
-    else if (e.key === 'Escape') setEditing(false);
+    rawStartEdit();
   }
 
   const dueInfo = formatDueDate(action.dueDate);

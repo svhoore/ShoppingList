@@ -1,10 +1,13 @@
-import { useState, useRef, useCallback, useEffect, useMemo, type FormEvent, type KeyboardEvent } from 'react';
+import { useState, useRef, useMemo, type FormEvent, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useHouseholdContext } from '../context/HouseholdContext';
-import { useHousehold, DEFAULT_CATEGORIES, type ShoppingItem } from '../hooks/useHousehold';
+import { useHousehold, type ShoppingItem } from '../hooks/useHousehold';
+import { useListCategories } from '../hooks/useCategories';
 import SwipeableItem from '../components/SwipeableItem';
 import ItemRow from '../components/ItemRow';
 import { IconHome, IconEye, IconEyeOff, IconPlus } from '../components/Icons';
+import ErrorToast from '../components/ErrorToast';
+import { useCrossListDrag } from '../hooks/useCrossListDrag';
 
 export default function AllItemsView() {
   const navigate = useNavigate();
@@ -28,18 +31,7 @@ export default function AllItemsView() {
   const inbox = data?.inbox ?? [];
 
   // ---- Category helpers ----
-  const allCategories = useMemo(() => {
-    const custom = data?.customCategories ?? [];
-    return [
-      ...DEFAULT_CATEGORIES,
-      ...custom.filter((c) => !(DEFAULT_CATEGORIES as readonly string[]).includes(c)),
-    ];
-  }, [data?.customCategories]);
-
-  const usedCategories = useMemo(() => {
-    const cats = new Set(lists.map((l) => l.category).filter(Boolean));
-    return allCategories.filter((c) => cats.has(c));
-  }, [lists, allCategories]);
+  const { usedCategories } = useListCategories(data);
 
   // ---- Grouped data ----
   const grouped = useMemo(() => {
@@ -57,141 +49,15 @@ export default function AllItemsView() {
 
 
 
-  // ---- Drag state ----
-  const [dragKey, setDragKey] = useState<string | null>(null); // item id being dragged
-  const [dragFromList, setDragFromList] = useState<string | null>(null);
-  const [dragFromIndex, setDragFromIndex] = useState<number | null>(null);
-  const [dropTarget, setDropTarget] = useState<{ listName: string; index: number } | null>(null);
-  const startYRef = useRef(0);
-  const rowRectsRef = useRef<{ key: string; listName: string; top: number; bottom: number; midY: number; activeIndex: number }[]>([]);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  /** Snapshot all draggable row rects at drag start */
-  const captureRects = useCallback(() => {
-    if (!containerRef.current) return;
-    const rects: typeof rowRectsRef.current = [];
-    const rows = containerRef.current.querySelectorAll<HTMLElement>('[data-drag-key]');
-    rows.forEach((el) => {
-      const key = el.dataset.dragKey!;
-      const list = el.dataset.dragList!;
-      const idx = parseInt(el.dataset.dragIdx!, 10);
-      const r = el.getBoundingClientRect();
-      rects.push({ key, listName: list, top: r.top, bottom: r.bottom, midY: (r.top + r.bottom) / 2, activeIndex: idx });
-    });
-    // Also capture empty-zone sentinels
-    const empties = containerRef.current.querySelectorAll<HTMLElement>('[data-empty-list]');
-    empties.forEach((el) => {
-      const list = el.dataset.emptyList!;
-      const r = el.getBoundingClientRect();
-      rects.push({ key: `empty:${list}`, listName: list, top: r.top, bottom: r.bottom, midY: (r.top + r.bottom) / 2, activeIndex: 0 });
-    });
-    rowRectsRef.current = rects;
-  }, []);
-
-  const handleDragStart = useCallback((itemId: string, listName: string, activeIndex: number, clientY: number) => {
-    setDragKey(itemId);
-    setDragFromList(listName);
-    setDragFromIndex(activeIndex);
-    setDropTarget({ listName, index: activeIndex });
-    startYRef.current = clientY;
-    // Small delay to let DOM settle, then capture rects
-    requestAnimationFrame(() => captureRects());
-  }, [captureRects]);
-
-  const handleDragMove = useCallback((clientY: number) => {
-    if (!dragKey) return;
-    // Re-capture rects each move so we always have up-to-date positions
-    captureRects();
-    const rects = rowRectsRef.current.filter(r => r.key !== dragKey);
-    if (rects.length === 0) return;
-
-    // Find closest rect to pointer
-    let closest = rects[0];
-    let closestDist = Math.abs(clientY - closest.midY);
-    for (let i = 1; i < rects.length; i++) {
-      const dist = Math.abs(clientY - rects[i].midY);
-      if (dist < closestDist) {
-        closest = rects[i];
-        closestDist = dist;
-      }
-    }
-
-    // Determine insertion index
-    const isBelow = clientY > closest.midY;
-    const newList = closest.listName;
-    const isEmptySlot = closest.key.startsWith('empty:');
-
-    if (isEmptySlot) {
-      setDropTarget({ listName: newList, index: 0 });
-    } else {
-      // Gather sorted active indices for this list
-      const listRects = rects
-        .filter(r => r.listName === newList && !r.key.startsWith('empty:'))
-        .sort((a, b) => a.activeIndex - b.activeIndex);
-
-      const closestIdx = listRects.findIndex(r => r.key === closest.key);
-      let targetIdx: number;
-      if (closestIdx === -1) {
-        targetIdx = 0;
-      } else if (isBelow) {
-        targetIdx = closestIdx + 1;
-      } else {
-        targetIdx = closestIdx;
-      }
-      // If dragging within the same list, account for the removed item
-      if (newList === dragFromList && dragFromIndex !== null && targetIdx > dragFromIndex) {
-        // The visual index already accounts for the gap, no adjustment needed
-      }
-      setDropTarget({ listName: newList, index: targetIdx });
-    }
-  }, [dragKey, dragFromList, dragFromIndex, captureRects]);
-
-  const handleDragEnd = useCallback(async () => {
-    if (dragKey && dragFromList !== null && dragFromIndex !== null && dropTarget) {
-      const { listName: toList, index: toIdx } = dropTarget;
-
-      if (toList === dragFromList) {
-        // Same list/inbox reorder
-        if (toIdx !== dragFromIndex) {
-          const adjustedIdx = toIdx > dragFromIndex ? toIdx - 1 : toIdx;
-          if (adjustedIdx !== dragFromIndex) {
-            if (dragFromList === INBOX_LIST) {
-              await reorderInbox(dragFromIndex, adjustedIdx);
-            } else {
-              await reorderItems(dragFromList, dragFromIndex, adjustedIdx);
-            }
-          }
-        }
-      } else if (dragFromList === INBOX_LIST) {
-        // Inbox → list
-        await moveInboxToList(dragKey, toList, toIdx);
-      } else if (toList === INBOX_LIST) {
-        // List → inbox
-        await moveItemToInbox(dragFromList, dragKey);
-      } else {
-        // Cross-list move
-        await moveItem(dragFromList, toList, dragKey, toIdx);
-      }
-    }
-    setDragKey(null);
-    setDragFromList(null);
-    setDragFromIndex(null);
-    setDropTarget(null);
-  }, [dragKey, dragFromList, dragFromIndex, dropTarget, reorderItems, moveItem, reorderInbox, moveInboxToList, moveItemToInbox, INBOX_LIST]);
-
-  useEffect(() => {
-    if (!dragKey) return;
-    const onMove = (e: PointerEvent) => { e.preventDefault(); handleDragMove(e.clientY); };
-    const onUp = () => handleDragEnd();
-    window.addEventListener('pointermove', onMove, { passive: false });
-    window.addEventListener('pointerup', onUp);
-    window.addEventListener('pointercancel', onUp);
-    return () => {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-      window.removeEventListener('pointercancel', onUp);
-    };
-  }, [dragKey, handleDragMove, handleDragEnd]);
+  // ---- Cross-list drag ----
+  const { dragKey, dragFromList, dropTarget, containerRef, handleDragStart, getDropIndicator, getDropAfterLast } = useCrossListDrag({
+    inboxKey: INBOX_LIST,
+    reorderInList: reorderItems,
+    reorderInbox,
+    moveInboxToList,
+    moveItemToInbox,
+    moveItem,
+  });
 
   async function handleToggle(listName: string, item: ShoppingItem) {
     if (navigator.vibrate) navigator.vibrate(10);
@@ -213,18 +79,7 @@ export default function AllItemsView() {
     }
   }
 
-  /** Whether a drop indicator line should be shown before a given item */
-  function getDropIndicator(listName: string, activeIndex: number): 'before' | 'after' | null {
-    if (!dragKey || !dropTarget || dropTarget.listName !== listName) return null;
-    if (dropTarget.index === activeIndex) return 'before';
-    return null;
-  }
 
-  /** Whether the "after last item" indicator should show */
-  function getDropAfterLast(listName: string, activeCount: number): boolean {
-    if (!dragKey || !dropTarget || dropTarget.listName !== listName) return false;
-    return dropTarget.index >= activeCount;
-  }
 
   if (loading) {
     return (
@@ -522,12 +377,7 @@ export default function AllItemsView() {
         )}
       </div>
 
-      {/* Error Toast */}
-      {error && (
-        <div className="fixed bottom-20 left-4 right-4 z-40 bg-ios-red text-white text-sm font-medium px-4 py-3 rounded-xl shadow-lg text-center">
-          {error}
-        </div>
-      )}
+      <ErrorToast error={error} />
     </div>
   );
 }

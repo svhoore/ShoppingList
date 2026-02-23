@@ -1,10 +1,10 @@
-import { useState, useRef, useCallback, useEffect, useMemo, type FormEvent } from 'react';
+import { useState, useMemo, useCallback, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { HouseholdData } from '../hooks/useHousehold';
-import IconPicker from './IconPicker';
-import CategoryPicker from './CategoryPicker';
+import ListFormModal from './ListFormModal';
 import ConfirmDialog from './ConfirmDialog';
 import { IconPlus, IconEdit, IconTrash, IconDragHandle } from './Icons';
+import { useDragReorder } from '../hooks/useDragReorder';
 
 interface ActionsTabProps {
   data: HouseholdData | null;
@@ -40,65 +40,19 @@ export default function ActionsTab({
 
   const actionLists = data?.actionLists ?? [];
 
-  // ---- Drag-and-drop state ----
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const [overIndex, setOverIndex] = useState<number | null>(null);
-  const startYRef = useRef(0);
-  const rowHeightsRef = useRef<number[]>([]);
-  const listContainerRef = useRef<HTMLDivElement>(null);
-
-  const handleDragStart = useCallback((index: number, clientY: number) => {
-    setDragIndex(index);
-    setOverIndex(index);
-    startYRef.current = clientY;
-    if (listContainerRef.current) {
-      const rows = listContainerRef.current.querySelectorAll('[data-action-list-row]');
-      rowHeightsRef.current = Array.from(rows).map((r) => r.getBoundingClientRect().height + 12);
-    }
-  }, []);
-
-  const handleDragMove = useCallback((clientY: number) => {
-    if (dragIndex === null) return;
-    const delta = clientY - startYRef.current;
-    let offset = 0;
-    let newIndex = dragIndex;
-    if (delta > 0) {
-      for (let i = dragIndex + 1; i < rowHeightsRef.current.length; i++) {
-        offset += rowHeightsRef.current[i];
-        if (delta > offset - rowHeightsRef.current[i] / 2) newIndex = i;
-        else break;
-      }
+  // ---- Drag-and-drop for list reordering ----
+  const handleListReorder = useCallback(async (fromIdx: number, toIdx: number) => {
+    if (categoryFilter) {
+      const filtered = actionLists.filter((al) => al.category === categoryFilter);
+      const fromFull = actionLists.findIndex((al) => al.listName === filtered[fromIdx]?.listName);
+      const toFull = actionLists.findIndex((al) => al.listName === filtered[toIdx]?.listName);
+      if (fromFull !== -1 && toFull !== -1) await reorderActionLists(fromFull, toFull);
     } else {
-      for (let i = dragIndex - 1; i >= 0; i--) {
-        offset -= rowHeightsRef.current[i];
-        if (delta < offset + rowHeightsRef.current[i] / 2) newIndex = i;
-        else break;
-      }
+      await reorderActionLists(fromIdx, toIdx);
     }
-    setOverIndex(newIndex);
-  }, [dragIndex]);
+  }, [actionLists, categoryFilter, reorderActionLists]);
 
-  const handleDragEnd = useCallback(async () => {
-    if (dragIndex !== null && overIndex !== null && dragIndex !== overIndex) {
-      await reorderActionLists(dragIndex, overIndex);
-    }
-    setDragIndex(null);
-    setOverIndex(null);
-  }, [dragIndex, overIndex, reorderActionLists]);
-
-  useEffect(() => {
-    if (dragIndex === null) return;
-    const onMove = (e: PointerEvent) => { e.preventDefault(); handleDragMove(e.clientY); };
-    const onUp = () => handleDragEnd();
-    window.addEventListener('pointermove', onMove, { passive: false });
-    window.addEventListener('pointerup', onUp);
-    window.addEventListener('pointercancel', onUp);
-    return () => {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-      window.removeEventListener('pointercancel', onUp);
-    };
-  }, [dragIndex, handleDragMove, handleDragEnd]);
+  const { dragIndex, overIndex, containerRef: listContainerRef, handleDragStart } = useDragReorder('[data-action-list-row]', handleListReorder, 12);
 
   const displayLists = useMemo(() => {
     let src = actionLists;
@@ -321,113 +275,43 @@ export default function ActionsTab({
 
       {/* Add Action List Modal */}
       {showAdd && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowAdd(false)} />
-          <form
-            onSubmit={handleAdd}
-            className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl"
-          >
-            <h3 className="text-lg font-semibold text-ios-text mb-3">New Action List</h3>
-            <div className="flex items-center gap-3">
-              <IconPicker value={newIcon} onChange={setNewIcon} />
-              <input
-                type="text"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="Action list name"
-                autoFocus
-                maxLength={60}
-                className="flex-1 px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[16px] placeholder:text-ios-secondary/50 focus:outline-none focus:ring-2 focus:ring-ios-blue/30"
-              />
-            </div>
-            <div className="mt-2 text-xs text-ios-secondary flex items-center gap-2">
-              <span className="text-base leading-none">{newIcon}</span>
-              <span className="truncate">
-                {(newName.trim() || 'Action list name')}{newCategory ? ` · ${newCategory}` : ''}
-              </span>
-            </div>
-            <div className="mt-3">
-              <label className="block text-xs font-medium text-ios-secondary uppercase tracking-wide mb-2">Category</label>
-              <CategoryPicker
-                value={newCategory}
-                onChange={(cat) => setNewCategory(cat)}
-                customCategories={data?.customActionCategories}
-                onAddCategory={addActionCategory}
-              />
-            </div>
-            <div className="flex gap-3 mt-4">
-              <button
-                type="button"
-                onClick={() => setShowAdd(false)}
-                className="flex-1 py-2.5 rounded-xl text-ios-blue font-medium bg-ios-bg active:bg-gray-200 transition-all active:scale-[0.98]"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={!newName.trim() || submitting}
-                className="flex-1 py-2.5 rounded-xl bg-ios-blue text-white font-semibold disabled:opacity-40 active:scale-[0.98] transition-transform"
-              >
-                {submitting ? 'Creating…' : 'Create'}
-              </button>
-            </div>
-          </form>
-        </div>
+        <ListFormModal
+          title="New Action List"
+          name={newName}
+          onNameChange={setNewName}
+          icon={newIcon}
+          onIconChange={setNewIcon}
+          category={newCategory}
+          onCategoryChange={setNewCategory}
+          customCategories={data?.customActionCategories}
+          onAddCategory={addActionCategory}
+          placeholder="Action list name"
+          previewFallback="Action list name"
+          submitting={submitting}
+          submitLabel={['Creating…', 'Create']}
+          onSubmit={handleAdd}
+          onClose={() => setShowAdd(false)}
+        />
       )}
 
       {/* Rename Modal */}
       {renameTarget && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setRenameTarget(null)} />
-          <form
-            onSubmit={handleRename}
-            className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl"
-          >
-            <h3 className="text-lg font-semibold text-ios-text mb-3">Rename Action List</h3>
-            <div className="flex items-center gap-3">
-              <IconPicker value={renameIcon} onChange={setRenameIcon} />
-              <input
-                type="text"
-                value={renameValue}
-                onChange={(e) => setRenameValue(e.target.value)}
-                autoFocus
-                maxLength={60}
-                className="flex-1 px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[16px] focus:outline-none focus:ring-2 focus:ring-ios-blue/30"
-              />
-            </div>
-            <div className="mt-2 text-xs text-ios-secondary flex items-center gap-2">
-              <span className="text-base leading-none">{renameIcon}</span>
-              <span className="truncate">
-                {(renameValue.trim() || 'Action list name')}{renameCategory ? ` · ${renameCategory}` : ''}
-              </span>
-            </div>
-            <div className="mt-3">
-              <label className="block text-xs font-medium text-ios-secondary uppercase tracking-wide mb-2">Category</label>
-              <CategoryPicker
-                value={renameCategory}
-                onChange={(cat) => setRenameCategory(cat)}
-                customCategories={data?.customActionCategories}
-                onAddCategory={addActionCategory}
-              />
-            </div>
-            <div className="flex gap-3 mt-4">
-              <button
-                type="button"
-                onClick={() => setRenameTarget(null)}
-                className="flex-1 py-2.5 rounded-xl text-ios-blue font-medium bg-ios-bg active:bg-gray-200 transition-all active:scale-[0.98]"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={!renameValue.trim() || submitting}
-                className="flex-1 py-2.5 rounded-xl bg-ios-blue text-white font-semibold disabled:opacity-40 active:scale-[0.98] transition-transform"
-              >
-                {submitting ? 'Saving…' : 'Save'}
-              </button>
-            </div>
-          </form>
-        </div>
+        <ListFormModal
+          title="Rename Action List"
+          name={renameValue}
+          onNameChange={setRenameValue}
+          icon={renameIcon}
+          onIconChange={setRenameIcon}
+          category={renameCategory}
+          onCategoryChange={setRenameCategory}
+          customCategories={data?.customActionCategories}
+          onAddCategory={addActionCategory}
+          previewFallback="Action list name"
+          submitting={submitting}
+          submitLabel={['Saving…', 'Save']}
+          onSubmit={handleRename}
+          onClose={() => setRenameTarget(null)}
+        />
       )}
 
       {/* Delete Confirm */}

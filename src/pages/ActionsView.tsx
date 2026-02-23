@@ -1,14 +1,15 @@
-import { useState, useRef, useCallback, useEffect, useMemo, type FormEvent, type KeyboardEvent } from 'react';
+import { useState, useRef, useMemo, useCallback, type FormEvent, type KeyboardEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useHouseholdContext } from '../context/HouseholdContext';
 import { useHousehold, type ActionItem, type ActionPriority } from '../hooks/useHousehold';
 import type { MemberInfo } from '../context/HouseholdContext';
 import SwipeableItem from '../components/SwipeableItem';
 import ConfirmDialog from '../components/ConfirmDialog';
-import IconPicker from '../components/IconPicker';
-import CategoryPicker from '../components/CategoryPicker';
+import ListFormModal from '../components/ListFormModal';
 import ActionRow from '../components/ActionRow';
 import { IconHome, IconMoreVertical, IconEye, IconEyeOff, IconEdit, IconTrash, IconPlus } from '../components/Icons';
+import ErrorToast from '../components/ErrorToast';
+import { useDragReorder } from '../hooks/useDragReorder';
 
 const PRIORITY_FILTERS: { value: ActionPriority | null; label: string }[] = [
   { value: null, label: 'All' },
@@ -24,6 +25,42 @@ const PRIORITY_OPTIONS: { value: ActionPriority; label: string; activeClass: str
   { value: 'high', label: 'High', activeClass: 'bg-orange-100 text-orange-600' },
   { value: 'urgent', label: 'Urgent', activeClass: 'bg-red-100 text-ios-red' },
 ];
+
+/** Inline quick-add row used in multiple places within ActionsView */
+function QuickAddRow({ quickRef, quickText, setQuickText, handleQuickKeyDown, openAdd, showDetailButton = true }: {
+  quickRef: React.RefObject<HTMLInputElement | null>;
+  quickText: string;
+  setQuickText: (v: string) => void;
+  handleQuickKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  openAdd?: () => void;
+  showDetailButton?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-3 px-4 py-2.5 bg-ios-bg border-t border-gray-100">
+      <div className="w-[22px] h-[22px] rounded-full border-2 border-gray-200 flex-shrink-0" />
+      <input
+        ref={quickRef}
+        type="text"
+        value={quickText}
+        onChange={(e) => setQuickText(e.target.value)}
+        onKeyDown={handleQuickKeyDown}
+        placeholder="Add a quick action…"
+        enterKeyHint="done"
+        maxLength={200}
+        className="flex-1 text-[15px] text-ios-text placeholder:text-ios-secondary/40 bg-transparent focus:outline-none py-0.5"
+      />
+      {showDetailButton && openAdd && (
+        <button
+          onClick={openAdd}
+          className="text-xs text-ios-blue font-medium px-2 py-1 rounded-lg active:bg-ios-blue/10"
+          title="Add with details"
+        >
+          + Detail
+        </button>
+      )}
+    </div>
+  );
+}
 
 export default function ActionsView() {
   const { listName: rawListName } = useParams<{ listName: string }>();
@@ -87,13 +124,12 @@ export default function ActionsView() {
   const [quickText, setQuickText] = useState('');
   const quickRef = useRef<HTMLInputElement>(null);
 
-  // ---- Drag-and-drop state ----
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const [overIndex, setOverIndex] = useState<number | null>(null);
-  const startYRef = useRef(0);
-  const currentYRef = useRef(0);
-  const rowHeightsRef = useRef<number[]>([]);
-  const listContainerRef = useRef<HTMLDivElement>(null);
+  // ---- Drag-and-drop ----
+  const handleReorder = useCallback(async (from: number, to: number) => {
+    await reorderActionItems(listName, from, to);
+  }, [listName, reorderActionItems]);
+
+  const { dragIndex, overIndex, containerRef: listContainerRef, handleDragStart } = useDragReorder('[data-drag-row]', handleReorder);
 
   const displayItems = useMemo(() => {
     if (dragIndex === null || overIndex === null || dragIndex === overIndex) return activeItems;
@@ -102,61 +138,6 @@ export default function ActionsView() {
     items.splice(overIndex, 0, moved);
     return items;
   }, [activeItems, dragIndex, overIndex]);
-
-  const handleDragStart = useCallback((index: number, clientY: number) => {
-    setDragIndex(index);
-    setOverIndex(index);
-    startYRef.current = clientY;
-    currentYRef.current = clientY;
-    if (listContainerRef.current) {
-      const rows = listContainerRef.current.querySelectorAll('[data-drag-row]');
-      rowHeightsRef.current = Array.from(rows).map((r) => r.getBoundingClientRect().height);
-    }
-  }, []);
-
-  const handleDragMove = useCallback((clientY: number) => {
-    if (dragIndex === null) return;
-    currentYRef.current = clientY;
-    const delta = clientY - startYRef.current;
-    let offset = 0;
-    let newIndex = dragIndex;
-    if (delta > 0) {
-      for (let i = dragIndex + 1; i < rowHeightsRef.current.length; i++) {
-        offset += rowHeightsRef.current[i];
-        if (delta > offset - rowHeightsRef.current[i] / 2) newIndex = i;
-        else break;
-      }
-    } else {
-      for (let i = dragIndex - 1; i >= 0; i--) {
-        offset -= rowHeightsRef.current[i];
-        if (delta < offset + rowHeightsRef.current[i] / 2) newIndex = i;
-        else break;
-      }
-    }
-    setOverIndex(newIndex);
-  }, [dragIndex]);
-
-  const handleDragEnd = useCallback(async () => {
-    if (dragIndex !== null && overIndex !== null && dragIndex !== overIndex) {
-      await reorderActionItems(listName, dragIndex, overIndex);
-    }
-    setDragIndex(null);
-    setOverIndex(null);
-  }, [dragIndex, overIndex, listName, reorderActionItems]);
-
-  useEffect(() => {
-    if (dragIndex === null) return;
-    const onMove = (e: PointerEvent) => { e.preventDefault(); handleDragMove(e.clientY); };
-    const onUp = () => handleDragEnd();
-    window.addEventListener('pointermove', onMove, { passive: false });
-    window.addEventListener('pointerup', onUp);
-    window.addEventListener('pointercancel', onUp);
-    return () => {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-      window.removeEventListener('pointercancel', onUp);
-    };
-  }, [dragIndex, handleDragMove, handleDragEnd]);
 
   async function handleQuickAdd(e?: FormEvent) {
     e?.preventDefault();
@@ -396,28 +377,7 @@ export default function ActionsView() {
                 </div>
               );
             })}
-            {/* Inline quick-add */}
-            <div className="flex items-center gap-3 px-4 py-2.5 bg-ios-bg border-t border-gray-100">
-              <div className="w-[22px] h-[22px] rounded-full border-2 border-gray-200 flex-shrink-0" />
-              <input
-                ref={quickRef}
-                type="text"
-                value={quickText}
-                onChange={(e) => setQuickText(e.target.value)}
-                onKeyDown={handleQuickKeyDown}
-                placeholder="Add a quick action…"
-                enterKeyHint="done"
-                maxLength={200}
-                className="flex-1 text-[15px] text-ios-text placeholder:text-ios-secondary/40 bg-transparent focus:outline-none py-0.5"
-              />
-              <button
-                onClick={openAdd}
-                className="text-xs text-ios-blue font-medium px-2 py-1 rounded-lg active:bg-ios-blue/10"
-                title="Add with details"
-              >
-                + Detail
-              </button>
-            </div>
+            <QuickAddRow quickRef={quickRef} quickText={quickText} setQuickText={setQuickText} handleQuickKeyDown={handleQuickKeyDown} openAdd={openAdd} />
           </div>
         ) : allItems.length === 0 ? (
           <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
@@ -426,50 +386,15 @@ export default function ActionsView() {
               <p className="text-ios-secondary text-sm">No actions yet</p>
               <p className="text-ios-secondary text-xs mt-1">Start typing below to add one</p>
             </div>
-            {/* Inline quick-add even when empty */}
-            <div className="flex items-center gap-3 px-4 py-2.5 bg-ios-bg border-t border-gray-100">
-              <div className="w-[22px] h-[22px] rounded-full border-2 border-gray-200 flex-shrink-0" />
-              <input
-                ref={quickRef}
-                type="text"
-                value={quickText}
-                onChange={(e) => setQuickText(e.target.value)}
-                onKeyDown={handleQuickKeyDown}
-                placeholder="Add a quick action…"
-                enterKeyHint="done"
-                maxLength={200}
-                className="flex-1 text-[15px] text-ios-text placeholder:text-ios-secondary/40 bg-transparent focus:outline-none py-0.5"
-              />
-              <button
-                onClick={openAdd}
-                className="text-xs text-ios-blue font-medium px-2 py-1 rounded-lg active:bg-ios-blue/10"
-                title="Add with details"
-              >
-                + Detail
-              </button>
-            </div>
+            <QuickAddRow quickRef={quickRef} quickText={quickText} setQuickText={setQuickText} handleQuickKeyDown={handleQuickKeyDown} openAdd={openAdd} />
           </div>
         ) : priorityFilter ? (
           <>
             <div className="text-center py-16">
               <p className="text-ios-secondary text-sm">No {priorityFilter} priority actions</p>
             </div>
-            {/* Inline quick-add */}
             <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
-              <div className="flex items-center gap-3 px-4 py-2.5 bg-ios-bg">
-                <div className="w-[22px] h-[22px] rounded-full border-2 border-gray-200 flex-shrink-0" />
-                <input
-                  ref={quickRef}
-                  type="text"
-                  value={quickText}
-                  onChange={(e) => setQuickText(e.target.value)}
-                  onKeyDown={handleQuickKeyDown}
-                  placeholder="Add a quick action…"
-                  enterKeyHint="done"
-                  maxLength={200}
-                  className="flex-1 text-[15px] text-ios-text placeholder:text-ios-secondary/40 bg-transparent focus:outline-none py-0.5"
-                />
-              </div>
+              <QuickAddRow quickRef={quickRef} quickText={quickText} setQuickText={setQuickText} handleQuickKeyDown={handleQuickKeyDown} showDetailButton={false} />
             </div>
           </>
         ) : null}
@@ -555,57 +480,22 @@ export default function ActionsView() {
 
       {/* Rename Modal */}
       {showRename && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowRename(false)} />
-          <form
-            onSubmit={handleRename}
-            className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl"
-          >
-            <h3 className="text-lg font-semibold text-ios-text mb-3">Rename Action List</h3>
-            <div className="flex items-center gap-3">
-              <IconPicker value={renameIcon} onChange={setRenameIcon} />
-              <input
-                type="text"
-                value={renameValue}
-                onChange={(e) => setRenameValue(e.target.value)}
-                autoFocus
-                maxLength={60}
-                className="flex-1 px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[16px] focus:outline-none focus:ring-2 focus:ring-ios-blue/30"
-              />
-            </div>
-            <div className="mt-2 text-xs text-ios-secondary flex items-center gap-2">
-              <span className="text-base leading-none">{renameIcon}</span>
-              <span className="truncate">
-                {(renameValue.trim() || 'Action list name')}{renameCategory ? ` · ${renameCategory}` : ''}
-              </span>
-            </div>
-            <div className="mt-3">
-              <label className="block text-xs font-medium text-ios-secondary uppercase tracking-wide mb-2">Category</label>
-              <CategoryPicker
-                value={renameCategory}
-                onChange={setRenameCategory}
-                customCategories={data?.customActionCategories}
-                onAddCategory={addActionCategory}
-              />
-            </div>
-            <div className="flex gap-3 mt-4">
-              <button
-                type="button"
-                onClick={() => setShowRename(false)}
-                className="flex-1 py-2.5 rounded-xl text-ios-blue font-medium bg-ios-bg active:bg-gray-200 transition-all active:scale-[0.98]"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={!renameValue.trim()}
-                className="flex-1 py-2.5 rounded-xl bg-ios-blue text-white font-semibold disabled:opacity-40 active:scale-[0.98] transition-transform"
-              >
-                Save
-              </button>
-            </div>
-          </form>
-        </div>
+        <ListFormModal
+          title="Rename Action List"
+          name={renameValue}
+          onNameChange={setRenameValue}
+          icon={renameIcon}
+          onIconChange={setRenameIcon}
+          category={renameCategory}
+          onCategoryChange={setRenameCategory}
+          customCategories={data?.customActionCategories}
+          onAddCategory={addActionCategory}
+          previewFallback="Action list name"
+          submitting={submitting}
+          submitLabel={['Saving…', 'Save']}
+          onSubmit={handleRename}
+          onClose={() => setShowRename(false)}
+        />
       )}
 
       {/* Delete Confirm */}
@@ -617,12 +507,7 @@ export default function ActionsView() {
         onCancel={() => setShowDeleteList(false)}
       />
 
-      {/* Error Toast */}
-      {error && (
-        <div className="fixed bottom-20 left-4 right-4 z-40 bg-ios-red text-white text-sm font-medium px-4 py-3 rounded-xl shadow-lg text-center">
-          {error}
-        </div>
-      )}
+      <ErrorToast error={error} />
     </div>
   );
 }
