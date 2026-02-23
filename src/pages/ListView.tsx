@@ -258,7 +258,7 @@ export default function ListView() {
                 data-drag-row
                 className={`transition-all duration-150 ${isDragging ? 'opacity-50 bg-ios-blue/5' : ''}`}
               >
-                <SwipeableItem onDelete={() => deleteItem(listName, item.id)}>
+                <SwipeableItem onDelete={() => deleteItem(listName, item.id)} onComplete={() => handleToggle(item)}>
                   <ItemRow
                     item={item}
                     onToggle={() => handleToggle(item)}
@@ -306,7 +306,7 @@ export default function ListView() {
             </div>
             <div className="bg-white rounded-2xl overflow-hidden shadow-sm divide-y divide-gray-100">
               {completedItems.map((item) => (
-                <SwipeableItem key={item.id} onDelete={() => deleteItem(listName, item.id)}>
+                <SwipeableItem key={item.id} onDelete={() => deleteItem(listName, item.id)} onComplete={() => handleToggle(item)}>
                   <ItemRow
                     item={item}
                     onToggle={() => handleToggle(item)}

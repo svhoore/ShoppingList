@@ -17,12 +17,13 @@ interface ActionsTabProps {
   addActionCategory: (name: string) => Promise<void>;
   allActionCategories: string[];
   usedActionCategories: string[];
+  reorderMode?: boolean;
 }
 
 export default function ActionsTab({
   data, addActionList, deleteActionList, renameActionList,
   setActionListIcon, setActionListCategory, reorderActionLists,
-  addActionCategory, usedActionCategories,
+  addActionCategory, usedActionCategories, reorderMode,
 }: ActionsTabProps) {
   const navigate = useNavigate();
   const [showAdd, setShowAdd] = useState(false);
@@ -249,6 +250,7 @@ export default function ActionsTab({
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
                       {/* Drag Handle */}
+                      {reorderMode && (
                       <div
                         onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); handleDragStart(originalIndex, e.clientY); }}
                         onClick={(e) => e.stopPropagation()}
@@ -256,6 +258,7 @@ export default function ActionsTab({
                       >
                         <IconDragHandle />
                       </div>
+                      )}
                       {/* Icon */}
                       <div className="w-10 h-10 rounded-xl bg-ios-blue/10 flex items-center justify-center text-xl flex-shrink-0">
                         {al.icon || '📋'}

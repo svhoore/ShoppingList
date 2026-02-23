@@ -3,12 +3,13 @@ import { useRef, useState, type ReactNode, type PointerEvent } from 'react';
 interface SwipeableItemProps {
   children: ReactNode;
   onDelete: () => void;
+  onComplete?: () => void;
 }
 
-export default function SwipeableItem({ children, onDelete }: SwipeableItemProps) {
+export default function SwipeableItem({ children, onDelete, onComplete }: SwipeableItemProps) {
   const startX = useRef(0);
   const startY = useRef(0);
-  const [offset, setOffset] = useState(0);
+  const [offset, setOffset] = useState(0); // positive = swiped left (delete), negative = swiped right (complete)
   const [swiping, setSwiping] = useState(false);
   const lockedAxis = useRef<'x' | 'y' | null>(null);
   const pointerIdRef = useRef<number | null>(null);
@@ -29,7 +30,7 @@ export default function SwipeableItem({ children, onDelete }: SwipeableItemProps
 
   function handlePointerMove(e: PointerEvent<HTMLDivElement>) {
     if (!swiping) return;
-    const diffX = startX.current - e.clientX;
+    const diffX = startX.current - e.clientX; // positive = swipe left, negative = swipe right
     const diffY = Math.abs(e.clientY - startY.current);
 
     // Lock axis once movement exceeds threshold
@@ -48,9 +49,12 @@ export default function SwipeableItem({ children, onDelete }: SwipeableItemProps
       return;
     }
 
-    // Only allow left swipe
     if (diffX > 0) {
+      // Swipe left → delete
       setOffset(Math.min(diffX, 200));
+    } else if (onComplete && diffX < 0) {
+      // Swipe right → complete
+      setOffset(Math.max(diffX, -200));
     }
   }
 
@@ -59,15 +63,27 @@ export default function SwipeableItem({ children, onDelete }: SwipeableItemProps
     lockedAxis.current = null;
     pointerIdRef.current = null;
     elementRef.current = null;
-    if (offset > 150) {
-      // Auto-delete on large swipe
-      setOffset(300);
-      setTimeout(onDelete, 200);
-    } else if (offset > 60) {
-      // Snap to reveal delete button
-      setOffset(80);
-    } else {
-      setOffset(0);
+
+    if (offset > 0) {
+      // Left swipe → delete
+      if (offset > 150) {
+        setOffset(300);
+        setTimeout(onDelete, 200);
+      } else if (offset > 60) {
+        setOffset(80);
+      } else {
+        setOffset(0);
+      }
+    } else if (offset < 0) {
+      // Right swipe → complete
+      if (offset < -150) {
+        setOffset(-300);
+        setTimeout(() => { onComplete?.(); setOffset(0); }, 200);
+      } else if (offset < -60) {
+        setOffset(-80);
+      } else {
+        setOffset(0);
+      }
     }
   }
 
@@ -76,9 +92,25 @@ export default function SwipeableItem({ children, onDelete }: SwipeableItemProps
     setTimeout(onDelete, 200);
   }
 
+  function handleCompleteClick() {
+    setOffset(-300);
+    setTimeout(() => { onComplete?.(); setOffset(0); }, 200);
+  }
+
   return (
     <div className="relative overflow-hidden">
-      {/* Delete button behind */}
+      {/* Complete button behind (left side) */}
+      {onComplete && (
+        <div
+          className="absolute inset-y-0 left-0 flex items-center justify-center bg-ios-green text-white font-semibold px-6"
+          style={{ width: 80 }}
+          onClick={handleCompleteClick}
+        >
+          Done
+        </div>
+      )}
+
+      {/* Delete button behind (right side) */}
       <div
         className="absolute inset-y-0 right-0 flex items-center justify-center bg-ios-red text-white font-semibold px-6"
         style={{ width: 80 }}
@@ -91,7 +123,7 @@ export default function SwipeableItem({ children, onDelete }: SwipeableItemProps
       <div
         className="relative bg-white touch-pan-y"
         style={{
-          transform: `translateX(-${offset}px)`,
+          transform: `translateX(${offset < 0 ? Math.abs(offset) : -offset}px)`,
           transitionDuration: swiping ? '0ms' : '300ms',
         }}
         onPointerDown={handlePointerDown}

@@ -371,7 +371,7 @@ export default function ActionsView() {
                   data-drag-row
                   className={`transition-all duration-150 ${isDragging ? 'opacity-50 bg-ios-blue/5' : ''}`}
                 >
-                  <SwipeableItem onDelete={() => deleteAction(listName, action.id)}>
+                  <SwipeableItem onDelete={() => deleteAction(listName, action.id)} onComplete={() => toggleAction(listName, action.id)}>
                     <ActionRow
                       action={action}
                       memberInfo={memberInfo}
@@ -480,7 +480,7 @@ export default function ActionsView() {
             </div>
             <div className="bg-white rounded-2xl overflow-hidden shadow-sm divide-y divide-gray-100">
               {completedItems.map(action => (
-                <SwipeableItem key={action.id} onDelete={() => deleteAction(listName, action.id)}>
+                <SwipeableItem key={action.id} onDelete={() => deleteAction(listName, action.id)} onComplete={() => toggleAction(listName, action.id)}>
                   <ActionRow
                     action={action}
                     memberInfo={memberInfo}

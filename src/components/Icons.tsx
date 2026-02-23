@@ -144,6 +144,18 @@ export function IconDragHandle({ size = 14, className }: IconProps) {
   );
 }
 
+export function IconReorder({ size = 20, className, strokeWidth = 2 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <line x1="4" y1="6" x2="20" y2="6" />
+      <line x1="4" y1="12" x2="20" y2="12" />
+      <line x1="4" y1="18" x2="20" y2="18" />
+      <polyline points="7 3 4 6 7 9" />
+      <polyline points="17 15 20 18 17 21" />
+    </svg>
+  );
+}
+
 export function IconHome({ size = 20, className, strokeWidth = 2 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>

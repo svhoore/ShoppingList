@@ -8,7 +8,7 @@ import IconPicker from '../components/IconPicker';
 import CategoryPicker from '../components/CategoryPicker';
 import SettingsModal from '../components/SettingsModal';
 import HouseholdSwitcher from '../components/HouseholdSwitcher';
-import { IconSwitch, IconSettings, IconPlus, IconEdit, IconTrash, IconDragHandle } from '../components/Icons';
+import { IconSwitch, IconSettings, IconPlus, IconEdit, IconTrash, IconDragHandle, IconReorder } from '../components/Icons';
 import ActionsTab from '../components/ActionsTab';
 
 export default function Dashboard() {
@@ -37,6 +37,7 @@ export default function Dashboard() {
   const [showSwitcher, setShowSwitcher] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [reorderMode, setReorderMode] = useState(false);
   const [tab, setTab] = useState<'lists' | 'actions'>(
     searchParams.get('tab') === 'actions' ? 'actions' : 'lists'
   );
@@ -254,6 +255,13 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <button
+              onClick={() => { setReorderMode(!reorderMode); if (reorderMode) { setDragIndex(null); setOverIndex(null); } }}
+              className={`p-3 rounded-lg transition-colors ${reorderMode ? 'text-ios-blue bg-ios-blue/10' : 'text-ios-secondary active:bg-gray-100'}`}
+              title={reorderMode ? 'Done reordering' : 'Reorder lists'}
+            >
+              <IconReorder size={20} />
+            </button>
+            <button
               onClick={() => setShowSettings(true)}
               className="p-3 rounded-lg text-ios-secondary active:bg-gray-100 transition-colors"
               title="Household settings"
@@ -375,6 +383,7 @@ export default function Dashboard() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         {/* Drag Handle */}
+                        {reorderMode && (
                         <div
                           onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); handleDragStart(originalIndex, e.clientY); }}
                           onClick={(e) => e.stopPropagation()}
@@ -382,6 +391,7 @@ export default function Dashboard() {
                         >
                           <IconDragHandle />
                         </div>
+                        )}
                         <div className="w-10 h-10 bg-ios-blue/10 rounded-xl flex items-center justify-center text-xl">
                           {list.icon || '📝'}
                         </div>
@@ -454,6 +464,7 @@ export default function Dashboard() {
           addActionCategory={addActionCategory}
           allActionCategories={allActionCategories}
           usedActionCategories={usedActionCategories}
+          reorderMode={reorderMode}
         />
       )}
 

@@ -477,7 +477,7 @@ export default function AllItemsView() {
                               data-drag-idx={idx}
                               className={`transition-all duration-150 ${isDragging ? 'opacity-40 bg-ios-blue/5' : ''}`}
                             >
-                              <SwipeableItem onDelete={() => deleteItem(group.listName, item.id)}>
+                              <SwipeableItem onDelete={() => deleteItem(group.listName, item.id)} onComplete={() => handleToggle(group.listName, item)}>
                                 <ItemRow
                                   item={item}
                                   onToggle={() => handleToggle(group.listName, item)}
@@ -503,7 +503,7 @@ export default function AllItemsView() {
                   {showCompleted && group.completed.length > 0 && (
                     <div className={`${group.active.length > 0 ? 'mt-2' : ''} bg-white rounded-2xl overflow-hidden shadow-sm divide-y divide-gray-100 opacity-60`}>
                       {group.completed.map(item => (
-                        <SwipeableItem key={item.id} onDelete={() => deleteItem(group.listName, item.id)}>
+                        <SwipeableItem key={item.id} onDelete={() => deleteItem(group.listName, item.id)} onComplete={() => handleToggle(group.listName, item)}>
                           <ItemRow
                             item={item}
                             onToggle={() => handleToggle(group.listName, item)}
