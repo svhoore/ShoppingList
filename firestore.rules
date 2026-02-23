@@ -70,6 +70,9 @@ service cloud.firestore {
             // Name length limit
             && request.resource.data.name is string
             && request.resource.data.name.size() <= 100
+            // Icon size limit (~75 KB base64 data URL)
+            && (request.resource.data.get('icon', '') is string)
+            && (request.resource.data.get('icon', '').size() <= 100000)
           )
           // ---- Regular member: can update lists/items OR leave ----
           || (
