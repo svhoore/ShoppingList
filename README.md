@@ -40,8 +40,21 @@ A shared household management PWA built with React, TypeScript, and Firebase. Ma
 - Installable PWA with offline support and update prompts
 - Real-time sync across devices via Firestore
 - Drag & drop reordering for lists and items (touch + mouse)
+- **Reorder mode** — drag handles hidden by default on mobile, toggled via header button (Dashboard only)
+- **Swipe gestures** — swipe left to delete, swipe right to mark complete
 - Category filters on dashboard and aggregate views
 - Responsive layout optimized for mobile
+
+### Security
+- Firestore rules with role-based access control (admin / member / non-member)
+- Household data restricted to members only — non-members cannot read household documents
+- Separate `/invites/{code}` collection for join previews (exposes name only)
+- Field-level validation: whitelisted fields, string length limits, schema enforcement
+- `memberInfo` shape validated on join (`hasOnly` displayName + email)
+- Last-admin protection — cannot demote the only remaining admin
+- Security headers via Vercel (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy)
+- localStorage household ID validated against expected format before use
+- No `dangerouslySetInnerHTML`, `eval`, or DOM injection — React JSX escaping throughout
 
 ## Tech Stack
 
