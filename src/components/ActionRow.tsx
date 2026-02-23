@@ -99,7 +99,7 @@ export default function ActionRow({ action, memberInfo, onToggle, onEdit, onDele
         <button
           onClick={onToggle}
           className={`w-[22px] h-[22px] rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all duration-300 ${
-            action.completed ? 'bg-ios-blue border-ios-blue' : 'border-gray-300'
+            action.completed ? 'bg-ios-green border-ios-green' : 'border-gray-300'
           }`}
         >
           {action.completed && <IconCheck size={12} className="text-white" strokeWidth={3} />}

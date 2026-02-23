@@ -221,7 +221,7 @@ export default function ActionsTab({
       {/* Action List cards — matches Lists tab layout */}
       <div className="max-w-lg mx-auto px-4 py-4 pb-24">
         {actionLists.length === 0 ? (
-          <div className="text-center py-20">
+          <div className="text-center py-16">
             <div className="text-5xl mb-4">📋</div>
             <p className="text-ios-secondary text-sm">No action lists yet</p>
             <p className="text-ios-secondary text-xs mt-1">Tap + to create your first action list</p>

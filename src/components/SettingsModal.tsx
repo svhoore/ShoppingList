@@ -98,15 +98,15 @@ export default function SettingsModal({
               <p className="text-xs text-ios-green font-medium mb-2 text-center">Saved ✓</p>
             )}
             {/* Tab bar */}
-            <div className="flex bg-gray-200/70 rounded-lg p-0.5">
+            <div className="flex bg-ios-bg/80 rounded-xl p-1 gap-1">
               {tabs.map(t => (
                 <button
                   key={t.key}
                   onClick={() => setTab(t.key)}
-                  className={`flex-1 py-1.5 rounded-md text-[13px] font-medium transition-all ${
+                  className={`flex-1 py-2 rounded-lg text-[13px] font-semibold transition-all ${
                     tab === t.key
                       ? 'bg-white text-ios-text shadow-sm'
-                      : 'text-ios-secondary active:text-ios-text'
+                      : 'text-ios-secondary'
                   }`}
                 >
                   {t.label}

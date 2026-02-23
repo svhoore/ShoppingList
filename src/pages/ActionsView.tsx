@@ -4,6 +4,9 @@ import { useHouseholdContext } from '../context/HouseholdContext';
 import { useHousehold, type ActionItem, type ActionPriority } from '../hooks/useHousehold';
 import type { MemberInfo } from '../context/HouseholdContext';
 import SwipeableItem from '../components/SwipeableItem';
+import ConfirmDialog from '../components/ConfirmDialog';
+import IconPicker from '../components/IconPicker';
+import CategoryPicker from '../components/CategoryPicker';
 import ActionRow from '../components/ActionRow';
 import { IconHome, IconMoreVertical, IconEye, IconEyeOff, IconEdit, IconTrash, IconPlus } from '../components/Icons';
 
@@ -30,7 +33,8 @@ export default function ActionsView() {
   const { householdId } = useHouseholdContext();
   const {
     data, loading, addAction, editAction, toggleAction, deleteAction,
-    deleteActionList, renameActionList, clearCompletedActions, reorderActionItems, error,
+    deleteActionList, renameActionList, setActionListIcon, setActionListCategory,
+    clearCompletedActions, reorderActionItems, addActionCategory, error,
   } = useHousehold(householdId);
 
   const [showAdd, setShowAdd] = useState(false);
@@ -40,6 +44,8 @@ export default function ActionsView() {
   const [showRename, setShowRename] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const [renameValue, setRenameValue] = useState(listName);
+  const [renameIcon, setRenameIcon] = useState('📋');
+  const [renameCategory, setRenameCategory] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [priorityFilter, setPriorityFilter] = useState<ActionPriority | null>(null);
 
@@ -219,10 +225,14 @@ export default function ActionsView() {
 
   async function handleRename(e: FormEvent) {
     e.preventDefault();
-    if (renameValue.trim() && renameValue !== listName) {
-      await renameActionList(listName, renameValue);
-      navigate(`/actions/${encodeURIComponent(renameValue.trim())}`, { replace: true });
-    }
+    const trimmed = renameValue.trim();
+    if (!trimmed) return;
+    const renamed = trimmed !== listName;
+    if (renamed) await renameActionList(listName, trimmed);
+    const target = renamed ? trimmed : listName;
+    if (renameIcon !== (actionList?.icon || '📋')) await setActionListIcon(target, renameIcon);
+    if (renameCategory !== (actionList?.category ?? '')) await setActionListCategory(target, renameCategory);
+    if (renamed) navigate(`/actions/${encodeURIComponent(trimmed)}`, { replace: true });
     setShowRename(false);
   }
 
@@ -283,7 +293,20 @@ export default function ActionsView() {
             </button>
             <div className="flex items-center gap-2">
               <span className="text-xl">{actionList.icon}</span>
-              <h1 className="text-xl font-bold text-ios-text">{listName}</h1>
+              <div>
+                <h1 className="text-xl font-bold text-ios-text">{listName}</h1>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-ios-secondary">
+                    {allItems.filter(a => !a.completed).length} active
+                  </span>
+                  {overdueCount > 0 && (
+                    <span className="text-xs text-ios-red font-medium">· {overdueCount} overdue</span>
+                  )}
+                  {completedItems.length > 0 && (
+                    <span className="text-xs text-ios-secondary">· {completedItems.length} done</span>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
           {/* Options button */}
@@ -307,7 +330,7 @@ export default function ActionsView() {
                   </button>
                   <div className="border-t border-gray-100" />
                   <button
-                    onClick={() => { setRenameValue(listName); setShowRename(true); setShowOptions(false); }}
+                    onClick={() => { setRenameValue(listName); setRenameIcon(actionList.icon || '📋'); setRenameCategory(actionList.category || ''); setShowRename(true); setShowOptions(false); }}
                     className="w-full px-4 py-3 text-left text-[15px] text-ios-text active:bg-gray-50 flex items-center gap-3"
                   >
                     <IconEdit size={18} className="text-ios-blue" />
@@ -329,20 +352,7 @@ export default function ActionsView() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto max-w-lg mx-auto w-full px-4 pt-4 pb-8">
-        {/* Stats */}
-        <div className="flex items-center gap-1 mb-3 px-1">
-          <span className="text-xs text-ios-secondary">
-            {allItems.filter(a => !a.completed).length} active
-          </span>
-          {overdueCount > 0 && (
-            <span className="text-xs text-ios-red font-medium">· {overdueCount} overdue</span>
-          )}
-          {completedItems.length > 0 && (
-            <span className="text-xs text-ios-secondary">· {completedItems.length} done</span>
-          )}
-        </div>
-
+      <div className="flex-1 overflow-y-auto max-w-lg mx-auto w-full px-4 pt-4 pb-24">
         {/* Priority filter pills */}
         <div className="flex gap-2 overflow-x-auto pb-3 scrollbar-hide">
           {PRIORITY_FILTERS.map(f => (
@@ -411,8 +421,8 @@ export default function ActionsView() {
           </div>
         ) : allItems.length === 0 ? (
           <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
-            <div className="text-center py-12">
-              <div className="text-4xl mb-3">📋</div>
+            <div className="text-center py-16">
+              <div className="text-5xl mb-4">📋</div>
               <p className="text-ios-secondary text-sm">No actions yet</p>
               <p className="text-ios-secondary text-xs mt-1">Start typing below to add one</p>
             </div>
@@ -441,7 +451,7 @@ export default function ActionsView() {
           </div>
         ) : priorityFilter ? (
           <>
-            <div className="text-center py-12">
+            <div className="text-center py-16">
               <p className="text-ios-secondary text-sm">No {priorityFilter} priority actions</p>
             </div>
             {/* Inline quick-add */}
@@ -552,14 +562,32 @@ export default function ActionsView() {
             className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl"
           >
             <h3 className="text-lg font-semibold text-ios-text mb-3">Rename Action List</h3>
-            <input
-              type="text"
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              autoFocus
-              maxLength={60}
-              className="w-full px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[16px] focus:outline-none focus:ring-2 focus:ring-ios-blue/30"
-            />
+            <div className="flex items-center gap-3">
+              <IconPicker value={renameIcon} onChange={setRenameIcon} />
+              <input
+                type="text"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                autoFocus
+                maxLength={60}
+                className="flex-1 px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[16px] focus:outline-none focus:ring-2 focus:ring-ios-blue/30"
+              />
+            </div>
+            <div className="mt-2 text-xs text-ios-secondary flex items-center gap-2">
+              <span className="text-base leading-none">{renameIcon}</span>
+              <span className="truncate">
+                {(renameValue.trim() || 'Action list name')}{renameCategory ? ` · ${renameCategory}` : ''}
+              </span>
+            </div>
+            <div className="mt-3">
+              <label className="block text-xs font-medium text-ios-secondary uppercase tracking-wide mb-2">Category</label>
+              <CategoryPicker
+                value={renameCategory}
+                onChange={setRenameCategory}
+                customCategories={data?.customActionCategories}
+                onAddCategory={addActionCategory}
+              />
+            </div>
             <div className="flex gap-3 mt-4">
               <button
                 type="button"
@@ -581,32 +609,13 @@ export default function ActionsView() {
       )}
 
       {/* Delete Confirm */}
-      {showDeleteList && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowDeleteList(false)} />
-          <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl text-center">
-            <h3 className="text-lg font-semibold text-ios-text mb-2">Delete Action List</h3>
-            <p className="text-ios-secondary text-sm mb-4">
-              Are you sure you want to delete "{listName}"? All actions will be lost.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowDeleteList(false)}
-                className="flex-1 py-2.5 rounded-xl text-ios-blue font-medium bg-ios-bg active:bg-gray-200 transition-all active:scale-[0.98]"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteList}
-                disabled={submitting}
-                className="flex-1 py-2.5 rounded-xl bg-ios-red text-white font-semibold disabled:opacity-40 active:scale-[0.98] transition-transform"
-              >
-                {submitting ? 'Deleting…' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={showDeleteList}
+        title="Delete Action List"
+        message={`Delete "${listName}" and all its actions? This can't be undone.`}
+        onConfirm={handleDeleteList}
+        onCancel={() => setShowDeleteList(false)}
+      />
 
       {/* Error Toast */}
       {error && (

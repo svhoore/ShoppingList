@@ -4,6 +4,8 @@ import { useHouseholdContext } from '../context/HouseholdContext';
 import { useHousehold, type ShoppingItem } from '../hooks/useHousehold';
 import SwipeableItem from '../components/SwipeableItem';
 import ConfirmDialog from '../components/ConfirmDialog';
+import IconPicker from '../components/IconPicker';
+import CategoryPicker from '../components/CategoryPicker';
 import ItemRow from '../components/ItemRow';
 import { IconHome, IconMoreVertical, IconEye, IconEyeOff, IconEdit, IconTrash } from '../components/Icons';
 
@@ -13,7 +15,7 @@ export default function ListView() {
   const navigate = useNavigate();
 
   const { householdId } = useHouseholdContext();
-  const { data, loading, addItem, toggleItem, deleteItem, editItem, toggleBonus, deleteList, renameList, reorderItems, clearCompleted, error } =
+  const { data, loading, addItem, toggleItem, deleteItem, editItem, toggleBonus, deleteList, renameList, setListIcon, setListCategory, addCategory, reorderItems, clearCompleted, error } =
     useHousehold(householdId);
 
   const [newItemText, setNewItemText] = useState('');
@@ -22,6 +24,8 @@ export default function ListView() {
   const [showRename, setShowRename] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const [renameValue, setRenameValue] = useState(listName);
+  const [renameIcon, setRenameIcon] = useState('📝');
+  const [renameCategory, setRenameCategory] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const newItemRef = useRef<HTMLInputElement>(null);
 
@@ -138,10 +142,14 @@ export default function ListView() {
 
   async function handleRename(e: FormEvent) {
     e.preventDefault();
-    if (renameValue.trim() && renameValue !== listName) {
-      await renameList(listName, renameValue);
-      navigate(`/list/${encodeURIComponent(renameValue)}`, { replace: true });
-    }
+    const trimmed = renameValue.trim();
+    if (!trimmed) return;
+    const renamed = trimmed !== listName;
+    if (renamed) await renameList(listName, trimmed);
+    const target = renamed ? trimmed : listName;
+    if (renameIcon !== (list?.icon || '📝')) await setListIcon(target, renameIcon);
+    if (renameCategory !== (list?.category ?? '')) await setListCategory(target, renameCategory);
+    if (renamed) navigate(`/list/${encodeURIComponent(trimmed)}`, { replace: true });
     setShowRename(false);
   }
 
@@ -200,7 +208,10 @@ export default function ListView() {
             >
               <IconHome />
             </button>
-            <h1 className="text-xl font-bold text-ios-text">{listName}</h1>
+            <div className="flex items-center gap-2">
+              <span className="text-xl">{list.icon || '📝'}</span>
+              <h1 className="text-xl font-bold text-ios-text">{listName}</h1>
+            </div>
           </div>
           {/* Options button */}
           <div className="relative">
@@ -220,12 +231,12 @@ export default function ListView() {
                     onClick={() => { setShowCompleted(!showCompleted); setShowOptions(false); }}
                     className="w-full px-4 py-3 text-left text-[15px] text-ios-text active:bg-gray-50 flex items-center gap-3"
                   >
-                    {showCompleted ? <IconEye className="text-ios-green" /> : <IconEyeOff className="text-ios-green" />}
+                    {showCompleted ? <IconEye className="text-ios-blue" /> : <IconEyeOff className="text-ios-blue" />}
                     {showCompleted ? 'Hide completed' : `Show completed (${completedItems.length})`}
                   </button>
                   <div className="border-t border-gray-100" />
                   <button
-                    onClick={() => { setRenameValue(listName); setShowRename(true); setShowOptions(false); }}
+                    onClick={() => { setRenameValue(listName); setRenameIcon(list.icon || '📝'); setRenameCategory(list.category || ''); setShowRename(true); setShowOptions(false); }}
                     className="w-full px-4 py-3 text-left text-[15px] text-ios-text active:bg-gray-50 flex items-center gap-3"
                   >
                     <IconEdit size={18} className="text-ios-blue" />
@@ -338,14 +349,32 @@ export default function ListView() {
             className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl"
           >
             <h3 className="text-lg font-semibold text-ios-text mb-3">Rename List</h3>
-            <input
-              type="text"
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              autoFocus
-              maxLength={60}
-              className="w-full px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[16px] focus:outline-none focus:ring-2 focus:ring-ios-blue/30"
-            />
+            <div className="flex items-center gap-3">
+              <IconPicker value={renameIcon} onChange={setRenameIcon} />
+              <input
+                type="text"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                autoFocus
+                maxLength={60}
+                className="flex-1 px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[16px] focus:outline-none focus:ring-2 focus:ring-ios-blue/30"
+              />
+            </div>
+            <div className="mt-2 text-xs text-ios-secondary flex items-center gap-2">
+              <span className="text-base leading-none">{renameIcon}</span>
+              <span className="truncate">
+                {(renameValue.trim() || 'List name')}{renameCategory ? ` · ${renameCategory}` : ''}
+              </span>
+            </div>
+            <div className="mt-3">
+              <label className="block text-xs font-medium text-ios-secondary uppercase tracking-wide mb-2">Category</label>
+              <CategoryPicker
+                value={renameCategory}
+                onChange={setRenameCategory}
+                customCategories={data?.customCategories}
+                onAddCategory={addCategory}
+              />
+            </div>
             <div className="flex gap-3 mt-4">
               <button
                 type="button"

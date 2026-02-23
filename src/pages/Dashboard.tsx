@@ -89,11 +89,22 @@ export default function Dashboard() {
 
   const handleDragEnd = useCallback(async () => {
     if (dragIndex !== null && overIndex !== null && dragIndex !== overIndex) {
-      await reorderLists(dragIndex, overIndex);
+      // Map display indices back to full-array indices when a category filter is active
+      const allLists = data?.lists ?? [];
+      if (categoryFilter) {
+        const filtered = allLists.filter((l) => l.category === categoryFilter);
+        const fromFull = allLists.findIndex((l) => l.listName === filtered[dragIndex]?.listName);
+        const toFull = allLists.findIndex((l) => l.listName === filtered[overIndex]?.listName);
+        if (fromFull !== -1 && toFull !== -1) {
+          await reorderLists(fromFull, toFull);
+        }
+      } else {
+        await reorderLists(dragIndex, overIndex);
+      }
     }
     setDragIndex(null);
     setOverIndex(null);
-  }, [dragIndex, overIndex, reorderLists]);
+  }, [dragIndex, overIndex, data?.lists, categoryFilter, reorderLists]);
 
   useEffect(() => {
     if (dragIndex === null) return;
@@ -358,16 +369,15 @@ export default function Dashboard() {
       {/* Lists */}
       <div className="max-w-lg mx-auto px-4 py-4 pb-24">
         {lists.length === 0 ? (
-          <div className="text-center py-20">
+          <div className="text-center py-16">
             <div className="text-5xl mb-4">🛒</div>
             <p className="text-ios-secondary text-sm">No lists yet</p>
             <p className="text-ios-secondary text-xs mt-1">Tap + to create your first shopping list</p>
           </div>
         ) : (
           <div ref={listContainerRef} className="space-y-3">
-            {displayLists.map((list) => {
-              const originalIndex = lists.findIndex((l) => l.listName === list.listName);
-              const isDragging = dragIndex !== null && list.listName === lists[dragIndex]?.listName;
+            {displayLists.map((list, displayIdx) => {
+              const isDragging = displayIdx === dragIndex;
               const remaining = list.items.filter((i) => !i.completed).length;
               const total = list.items.length;
               return (
@@ -385,7 +395,7 @@ export default function Dashboard() {
                         {/* Drag Handle */}
                         {reorderMode && (
                         <div
-                          onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); handleDragStart(originalIndex, e.clientY); }}
+                          onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); handleDragStart(displayIdx, e.clientY); }}
                           onClick={(e) => e.stopPropagation()}
                           className="flex-shrink-0 touch-none cursor-grab active:cursor-grabbing p-1 text-ios-secondary/30"
                         >

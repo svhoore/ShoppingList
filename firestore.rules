@@ -2,21 +2,21 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ---- Public invite docs (name only, for join preview) ----
+    // ---- Public invite docs (name + icon + member count, for join preview) ----
     match /invites/{code} {
       // Any authenticated user can read an invite (needed for join preview)
       allow read: if request.auth != null;
 
       // Create: only when creating a household (same code used as household doc ID)
       allow create: if request.auth != null
-        && request.resource.data.keys().hasOnly(['name'])
+        && request.resource.data.keys().hasOnly(['name', 'icon', 'members'])
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.name.size() <= 100;
 
-      // Update: only admins of the corresponding household can rename
+      // Update: only admins of the corresponding household can update
       allow update: if request.auth != null
-        && request.resource.data.keys().hasOnly(['name'])
+        && request.resource.data.keys().hasOnly(['name', 'icon', 'members'])
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.name.size() <= 100
@@ -58,7 +58,8 @@ service cloud.firestore {
           (
             request.auth.uid in resource.data.members
             && request.auth.uid in resource.data.admins
-            && request.resource.data.keys().hasOnly([
+            // Only allow CHANGING whitelisted fields (legacy fields on the doc are OK)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
               'name', 'icon', 'lists', 'members', 'admins', 'memberInfo',
               'customCategories', 'customActionCategories',
               'actionLists', 'inbox', 'actionInbox'

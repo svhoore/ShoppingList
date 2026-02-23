@@ -181,9 +181,11 @@ export function useHousehold(householdId: string | null) {
         const lists = getLists();
         if (fn(lists) === false) return;
         await updateDoc(getRef(), { lists, ...extraFields });
-      } catch (e) {
-        console.error(errorMsg, e);
-        setError(errorMsg);
+      } catch (e: unknown) {
+        const code = (e as { code?: string }).code;
+        const detail = code === 'permission-denied' ? ' (permission denied — are Firestore rules deployed?)' : code ? ` (${code})` : '';
+        console.error(errorMsg + detail, e);
+        setError(errorMsg + detail);
       }
     },
     [getRef, getLists],
@@ -201,9 +203,11 @@ export function useHousehold(householdId: string | null) {
         const actionLists = getActionLists();
         if (fn(actionLists) === false) return;
         await updateDoc(getRef(), { actionLists, ...extraFields });
-      } catch (e) {
-        console.error(errorMsg, e);
-        setError(errorMsg);
+      } catch (e: unknown) {
+        const code = (e as { code?: string }).code;
+        const detail = code === 'permission-denied' ? ' (permission denied — are Firestore rules deployed?)' : code ? ` (${code})` : '';
+        console.error(errorMsg + detail, e);
+        setError(errorMsg + detail);
       }
     },
     [getRef, getActionLists],

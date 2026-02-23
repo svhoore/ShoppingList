@@ -74,8 +74,12 @@ export default function JoinScreen() {
                     onClick={() => switchHousehold(h.id)}
                     className="w-full flex items-center gap-3 px-4 py-3 bg-ios-bg rounded-xl text-left active:bg-ios-blue/10 transition-colors"
                   >
-                    <div className="w-10 h-10 bg-ios-blue/10 rounded-xl flex items-center justify-center text-lg">
-                      🏠
+                    <div className="w-10 h-10 bg-ios-blue/10 rounded-xl flex items-center justify-center text-lg overflow-hidden">
+                      {h.icon ? (
+                        <img src={h.icon} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <span>🏠</span>
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-ios-text text-[15px] truncate">{h.name}</p>
@@ -153,7 +157,9 @@ export default function JoinScreen() {
         </form>
 
         {error && (
-          <p className="text-center text-xs text-ios-red mt-4 font-medium">{error}</p>
+          <div className="fixed bottom-20 left-4 right-4 z-40 bg-ios-red text-white text-sm font-medium px-4 py-3 rounded-xl shadow-lg text-center">
+            {error}
+          </div>
         )}
 
         {/* Join confirmation dialog (from invite link) */}

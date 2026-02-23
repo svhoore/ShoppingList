@@ -395,7 +395,7 @@ export default function AllActionsView() {
 
         {/* List groups */}
         {grouped.length === 0 && actionInbox.length === 0 ? (
-          <div className="text-center py-12">
+          <div className="text-center py-16">
             <div className="text-5xl mb-4">✨</div>
             <p className="text-ios-secondary text-sm">
               {categoryFilter ? 'No action lists in this category' : 'No action lists yet'}
