@@ -6,6 +6,9 @@ import { IconShoppingBag } from './components/Icons';
 import JoinScreen from './pages/JoinScreen';
 import Dashboard from './pages/Dashboard';
 import ListView from './pages/ListView';
+import ActionsView from './pages/ActionsView';
+import AllItemsView from './pages/AllItemsView';
+import AllActionsView from './pages/AllActionsView';
 
 function SignInScreen() {
   const { signInWithGoogle, authError } = useAuth();
@@ -68,7 +71,10 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Dashboard />} />
+      <Route path="/list/all" element={<AllItemsView />} />
       <Route path="/list/:listName" element={<ListView />} />
+      <Route path="/actions/all" element={<AllActionsView />} />
+      <Route path="/actions/:listName" element={<ActionsView />} />
       <Route path="/join/:code" element={<Navigate to="/" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -10,9 +10,10 @@ interface ItemRowProps {
   onToggleBonus?: () => void;
   onDragStart?: (clientY: number) => void;
   isDragging?: boolean;
+  hideCheckbox?: boolean;
 }
 
-export default function ItemRow({ item, onToggle, onEdit, onDelete, onToggleBonus, onDragStart, isDragging }: ItemRowProps) {
+export default function ItemRow({ item, onToggle, onEdit, onDelete, onToggleBonus, onDragStart, isDragging, hideCheckbox }: ItemRowProps) {
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState(item.text);
   const editRef = useRef<HTMLInputElement>(null);
@@ -58,6 +59,7 @@ export default function ItemRow({ item, onToggle, onEdit, onDelete, onToggleBonu
       )}
 
       {/* Circle Checkbox */}
+      {!hideCheckbox && (
       <button
         onClick={onToggle}
         className={`w-[22px] h-[22px] rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all duration-300 ${
@@ -66,6 +68,7 @@ export default function ItemRow({ item, onToggle, onEdit, onDelete, onToggleBonu
       >
         {item.completed && <IconCheck size={12} className="text-white" strokeWidth={3} />}
       </button>
+      )}
 
       {/* Text / Edit input */}
       {editing ? (

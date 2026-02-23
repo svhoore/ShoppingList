@@ -19,12 +19,13 @@ interface SettingsModalProps {
   demoteFromAdmin: (uid: string) => Promise<void>;
   removeMember: (uid: string) => Promise<void>;
   removeCategory: (name: string) => Promise<void>;
+  removeActionCategory: (name: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
 export default function SettingsModal({
   data, user, isAdmin, inviteLink, onClose, onLeave,
-  renameHousehold, setHouseholdIcon, promoteToAdmin, demoteFromAdmin, removeMember, removeCategory, signOut,
+  renameHousehold, setHouseholdIcon, promoteToAdmin, demoteFromAdmin, removeMember, removeCategory, removeActionCategory, signOut,
 }: SettingsModalProps) {
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(data?.name || '');
@@ -163,7 +164,7 @@ export default function SettingsModal({
             {isAdmin && (data?.customCategories?.length ?? 0) > 0 && (
               <div>
                 <label className="block text-xs font-medium text-ios-secondary uppercase tracking-wide mb-2">
-                  Categories
+                  List Categories
                 </label>
                 <div className="flex flex-wrap gap-2">
                   {data?.customCategories?.map((cat) => (
@@ -181,6 +182,32 @@ export default function SettingsModal({
                 </div>
                 <p className="text-[11px] text-ios-secondary mt-1.5">
                   Removing a category also un-assigns it from any lists using it.
+                </p>
+              </div>
+            )}
+
+            {/* Custom Action Categories (Admin) */}
+            {isAdmin && (data?.customActionCategories?.length ?? 0) > 0 && (
+              <div>
+                <label className="block text-xs font-medium text-ios-secondary uppercase tracking-wide mb-2">
+                  Action Categories
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {data?.customActionCategories?.map((cat) => (
+                    <div key={cat} className="flex items-center gap-1 px-3 py-1.5 bg-ios-bg rounded-lg">
+                      <span className="text-[13px] font-medium text-ios-text">{cat}</span>
+                      <button
+                        onClick={() => removeActionCategory(cat)}
+                        className="p-0.5 rounded text-ios-secondary hover:text-ios-red transition-colors"
+                        title={`Remove "${cat}"`}
+                      >
+                        <IconX size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[11px] text-ios-secondary mt-1.5">
+                  Removing a category also un-assigns it from any action lists using it.
                 </p>
               </div>
             )}

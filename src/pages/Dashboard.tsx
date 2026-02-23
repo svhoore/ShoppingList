@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useHouseholdContext } from '../context/HouseholdContext';
 import { useAuth } from '../context/AuthContext';
 import { useHousehold, DEFAULT_CATEGORIES } from '../hooks/useHousehold';
@@ -10,6 +10,7 @@ import SettingsModal from '../components/SettingsModal';
 import HouseholdSwitcher from '../components/HouseholdSwitcher';
 import { IconSwitch, IconShare, IconCheck, IconSettings, IconPlus, IconEdit, IconTrash, IconDragHandle } from '../components/Icons';
 import { shareOrCopy } from '../lib/share';
+import ActionsTab from '../components/ActionsTab';
 
 export default function Dashboard() {
   const { householdId, userHouseholds, leaveHousehold, switchHousehold, clearHousehold } = useHouseholdContext();
@@ -17,8 +18,11 @@ export default function Dashboard() {
   const {
     data, loading, error, addList, deleteList, renameList, setListIcon, setListCategory,
     reorderLists, renameHousehold, setHouseholdIcon, promoteToAdmin, demoteFromAdmin, removeMember, addCategory, removeCategory,
+    addActionList, deleteActionList, renameActionList, setActionListIcon, setActionListCategory, reorderActionLists,
+    addActionCategory, removeActionCategory,
   } = useHousehold(householdId);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [showAdd, setShowAdd] = useState(false);
   const [newListName, setNewListName] = useState('');
@@ -34,6 +38,9 @@ export default function Dashboard() {
   const [showSwitcher, setShowSwitcher] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [tab, setTab] = useState<'lists' | 'actions'>(
+    searchParams.get('tab') === 'actions' ? 'actions' : 'lists'
+  );
 
   const isAdmin = useMemo(() => !!(user && data?.admins?.includes(user.uid)), [user, data?.admins]);
   const memberCount = data?.members?.length ?? 0;
@@ -142,6 +149,19 @@ export default function Dashboard() {
     const cats = new Set((data?.lists ?? []).map((l) => l.category).filter(Boolean));
     return allCategories.filter((c) => cats.has(c));
   }, [data?.lists, allCategories]);
+
+  const allActionCategories = useMemo(() => {
+    const custom = data?.customActionCategories ?? [];
+    return [
+      ...DEFAULT_CATEGORIES,
+      ...custom.filter((c) => !(DEFAULT_CATEGORIES as readonly string[]).includes(c)),
+    ];
+  }, [data?.customActionCategories]);
+
+  const usedActionCategories = useMemo(() => {
+    const cats = new Set((data?.actionLists ?? []).map((al) => al.category).filter(Boolean));
+    return allActionCategories.filter((c) => cats.has(c));
+  }, [data?.actionLists, allActionCategories]);
 
   async function handleAddList(e: FormEvent) {
     e.preventDefault();
@@ -268,11 +288,58 @@ export default function Dashboard() {
             </button>
           </div>
         </div>
+        {/* Tab Toggle */}
+        <div className="max-w-lg mx-auto px-4 pb-3">
+          <div className="flex bg-ios-bg/80 rounded-xl p-1 gap-1">
+            <button
+              onClick={() => setTab('lists')}
+              className={`flex-1 py-2 rounded-lg text-[13px] font-semibold transition-all ${
+                tab === 'lists' ? 'bg-white text-ios-text shadow-sm' : 'text-ios-secondary'
+              }`}
+            >
+              🛒 Lists
+            </button>
+            <button
+              onClick={() => setTab('actions')}
+              className={`flex-1 py-2 rounded-lg text-[13px] font-semibold transition-all ${
+                tab === 'actions' ? 'bg-white text-ios-text shadow-sm' : 'text-ios-secondary'
+              }`}
+            >
+              📋 Actions
+            </button>
+          </div>
+        </div>
       </div>
+
+      {/* Lists tab */}
+      {tab === 'lists' && (
+      <>
+      {/* View All Items card */}
+        <div className="max-w-lg mx-auto px-4 pt-4 pb-0">
+          <div
+            onClick={() => navigate('/list/all')}
+            className="bg-gradient-to-r from-ios-blue/5 to-ios-blue/10 rounded-2xl p-4 active:scale-[0.98] transition-transform cursor-pointer shadow-sm border border-ios-blue/15"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-ios-blue/15 rounded-xl flex items-center justify-center text-xl">
+                📦
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="font-semibold text-ios-text text-[15px]">All Items</h2>
+                <p className="text-xs text-ios-secondary">
+                  {lists.length === 0
+                    ? 'No lists yet'
+                    : `${lists.reduce((s, l) => s + l.items.filter(i => !i.completed).length, 0)} active across ${lists.length} list${lists.length !== 1 ? 's' : ''}`}
+                </p>
+              </div>
+              <span className="text-ios-blue text-sm font-medium">View →</span>
+            </div>
+          </div>
+        </div>
 
       {/* Category Filter */}
       <div className="max-w-lg mx-auto px-4 pt-4 pb-0">
-        {usedCategories.length > 1 && (
+        {usedCategories.length > 0 && (
           <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
             <button
               onClick={() => setCategoryFilter(null)}
@@ -299,7 +366,7 @@ export default function Dashboard() {
             ))}
           </div>
         )}
-        {lists.length > 0 && usedCategories.length <= 1 && (
+        {lists.length > 0 && usedCategories.length === 0 && (
           <p className="text-xs text-ios-secondary mt-1">
             Assign categories to lists to enable filtering.
           </p>
@@ -397,6 +464,23 @@ export default function Dashboard() {
       >
         <IconPlus />
       </button>
+      </>
+      )}
+
+      {tab === 'actions' && (
+        <ActionsTab
+          data={data}
+          addActionList={addActionList}
+          deleteActionList={deleteActionList}
+          renameActionList={renameActionList}
+          setActionListIcon={setActionListIcon}
+          setActionListCategory={setActionListCategory}
+          reorderActionLists={reorderActionLists}
+          addActionCategory={addActionCategory}
+          allActionCategories={allActionCategories}
+          usedActionCategories={usedActionCategories}
+        />
+      )}
 
       {/* Add List Modal */}
       {showAdd && (
@@ -533,6 +617,7 @@ export default function Dashboard() {
           demoteFromAdmin={demoteFromAdmin}
           removeMember={removeMember}
           removeCategory={removeCategory}
+          removeActionCategory={removeActionCategory}
           signOut={signOut}
         />
       )}
