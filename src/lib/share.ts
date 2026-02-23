@@ -17,13 +17,7 @@ export async function shareOrCopy(
   try {
     await navigator.clipboard.writeText(shareData.url);
   } catch {
-    // Fallback for older browsers / insecure contexts
-    const el = document.createElement('textarea');
-    el.value = shareData.url;
-    document.body.appendChild(el);
-    el.select();
-    document.execCommand('copy');
-    document.body.removeChild(el);
+    // Clipboard API unavailable — silently fail
   }
   onCopied?.();
 }

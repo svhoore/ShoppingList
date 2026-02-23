@@ -1,62 +1,119 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // ---- Public invite docs (name only, for join preview) ----
+    match /invites/{code} {
+      // Any authenticated user can read an invite (needed for join preview)
+      allow read: if request.auth != null;
+
+      // Create: only when creating a household (same code used as household doc ID)
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['name'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 100;
+
+      // Update: only admins of the corresponding household can rename
+      allow update: if request.auth != null
+        && request.resource.data.keys().hasOnly(['name'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 100
+        && exists(/databases/$(database)/documents/households/$(code))
+        && request.auth.uid in get(/databases/$(database)/documents/households/$(code)).data.admins;
+
+      allow delete: if false;
+    }
+
+    // ---- Household documents ----
     match /households/{householdId} {
-      // Get: any authenticated user can look up a specific household (needed for join flow)
-      allow get: if request.auth != null;
+      // Read: only members can read household data
+      allow get: if request.auth != null
+        && request.auth.uid in resource.data.members;
 
       // List/query: only members (used by the "my households" query)
       allow list: if request.auth != null
         && request.auth.uid in resource.data.members;
 
-      // Create: must place self in both members and admins
+      // Create: must place self in both members and admins, validate schema
       allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['name', 'lists', 'members', 'admins', 'memberInfo'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 2
+        && request.resource.data.name.size() <= 100
         && request.resource.data.members is list
+        && request.resource.data.members.size() == 1
         && request.auth.uid in request.resource.data.members
         && request.resource.data.admins is list
-        && request.auth.uid in request.resource.data.admins;
+        && request.resource.data.admins.size() == 1
+        && request.auth.uid in request.resource.data.admins
+        && request.resource.data.lists is list
+        && request.resource.data.lists.size() == 0;
 
       // Update: role-based access
       allow update: if request.auth != null
         && (
-          // Admin member: full update access
+          // ---- Admin member: broad update access with field whitelist ----
           (
             request.auth.uid in resource.data.members
             && request.auth.uid in resource.data.admins
+            && request.resource.data.keys().hasOnly([
+              'name', 'icon', 'lists', 'members', 'admins', 'memberInfo',
+              'customCategories', 'customActionCategories',
+              'actionLists', 'inbox', 'actionInbox'
+            ])
+            // Must always keep at least one admin
+            && request.resource.data.admins is list
+            && request.resource.data.admins.size() > 0
+            // Name length limit
+            && request.resource.data.name is string
+            && request.resource.data.name.size() <= 100
           )
-          // Regular member: can update lists OR leave (remove self)
+          // ---- Regular member: can update lists/items OR leave ----
           || (
             request.auth.uid in resource.data.members
+            && !(request.auth.uid in resource.data.admins)
             && request.resource.data.name == resource.data.name
             && request.resource.data.admins == resource.data.admins
             && (
-              // Sub-case A: update lists only (members + memberInfo unchanged)
+              // Sub-case A: update lists/items only (members + memberInfo unchanged)
               (
                 request.resource.data.members == resource.data.members
                 && request.resource.data.memberInfo == resource.data.memberInfo
               )
-              // Sub-case B: leave — remove self from members, lists unchanged
+              // Sub-case B: leave — remove self from members, data unchanged
               || (
                 !(request.auth.uid in request.resource.data.members)
                 && request.resource.data.members.size() == resource.data.members.size() - 1
                 && request.resource.data.lists == resource.data.lists
+                && request.resource.data.actionLists == resource.data.actionLists
               )
             )
           )
-          // Non-member: can only join (add self to members + own memberInfo)
+          // ---- Non-member: can only join (add self to members + own memberInfo) ----
           || (
             !(request.auth.uid in resource.data.members)
             && request.auth.uid in request.resource.data.members
             && request.resource.data.members.size() == resource.data.members.size() + 1
             && request.resource.data.lists == resource.data.lists
+            && request.resource.data.actionLists == resource.data.actionLists
             && request.resource.data.admins == resource.data.admins
             && request.resource.data.name == resource.data.name
+            // Validate the memberInfo entry shape
+            && request.resource.data.memberInfo[request.auth.uid].keys().hasOnly(['displayName', 'email'])
+            && request.resource.data.memberInfo[request.auth.uid].displayName is string
+            && request.resource.data.memberInfo[request.auth.uid].displayName.size() <= 100
+            && request.resource.data.memberInfo[request.auth.uid].email is string
+            && request.resource.data.memberInfo[request.auth.uid].email.size() <= 200
           )
         );
 
       // Disallow delete entirely
       allow delete: if false;
     }
+
+    // Deny everything else
     match /{document=**} {
       allow read, write: if false;
     }

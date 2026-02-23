@@ -51,6 +51,11 @@ const HouseholdContext = createContext<HouseholdContextValue | null>(null);
 
 const STORAGE_KEY = 'osl_household_id';
 
+/** Validate that a household ID looks like a valid invite code (6-12 alphanumeric chars) */
+function isValidHouseholdId(id: string): boolean {
+  return /^[A-Z0-9]{6,12}$/i.test(id);
+}
+
 /** Best display name from a Firebase user: displayName > email username > email > 'User' */
 function getDisplayName(u: { displayName?: string | null; email?: string | null }): string {
   if (u.displayName) return u.displayName;
@@ -65,10 +70,14 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Restore from localStorage on mount
+  // Restore from localStorage on mount (validate format to prevent tampered values)
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) setHouseholdId(stored);
+    if (stored && isValidHouseholdId(stored)) {
+      setHouseholdId(stored);
+    } else if (stored) {
+      localStorage.removeItem(STORAGE_KEY);
+    }
     setLoading(false);
   }, []);
 
@@ -127,6 +136,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
     try {
       const code = generateInviteCode();
       const ref = doc(db, 'households', code);
+      const inviteRef = doc(db, 'invites', code);
       await setDoc(ref, {
         name: trimmed,
         lists: [],
@@ -139,6 +149,8 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
           },
         },
       });
+      // Public invite doc — readable by any authenticated user for join preview
+      await setDoc(inviteRef, { name: trimmed });
       localStorage.setItem(STORAGE_KEY, code);
       setHouseholdId(code);
       setLoading(false);
@@ -164,24 +176,23 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
     setError(null);
     setLoading(true);
     try {
-      const ref = doc(db, 'households', code);
-      const snap = await getDoc(ref);
-      if (!snap.exists()) {
+      // Look up via invite doc (public) — household doc is restricted to members
+      const inviteRef = doc(db, 'invites', code);
+      const inviteSnap = await getDoc(inviteRef);
+      if (!inviteSnap.exists()) {
         setError('Household not found. Check the invite code.');
         setLoading(false);
         return false;
       }
-      const data = snap.data();
-      const members: string[] = data.members || [];
-      if (!members.includes(user.uid)) {
-        await updateDoc(ref, {
-          members: arrayUnion(user.uid),
-          [`memberInfo.${user.uid}`]: {
-            displayName: getDisplayName(user),
-            email: user.email || '',
-          },
-        });
-      }
+      const ref = doc(db, 'households', code);
+      // Join directly — Firestore rules allow non-members to add themselves
+      await updateDoc(ref, {
+        members: arrayUnion(user.uid),
+        [`memberInfo.${user.uid}`]: {
+          displayName: getDisplayName(user),
+          email: user.email || '',
+        },
+      });
       localStorage.setItem(STORAGE_KEY, code);
       setHouseholdId(code);
       setLoading(false);
@@ -228,8 +239,9 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
   const lookupHousehold = useCallback(async (rawCode: string): Promise<{ name: string } | null> => {
     const code = normalizeInviteCode(rawCode);
     try {
-      const ref = doc(db, 'households', code);
-      const snap = await getDoc(ref);
+      // Read from public invite doc instead of the household document
+      const inviteRef = doc(db, 'invites', code);
+      const snap = await getDoc(inviteRef);
       if (snap.exists()) {
         return { name: (snap.data().name as string) || code };
       }

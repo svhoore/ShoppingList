@@ -216,6 +216,12 @@ export function useHousehold(householdId: string | null) {
       const trimmed = newName.trim();
       if (!trimmed) return;
       await updateDoc(getRef(), { name: trimmed });
+      // Keep the public invite doc in sync
+      try {
+        const householdId = getRef().id;
+        const inviteRef = doc(db, 'invites', householdId);
+        await updateDoc(inviteRef, { name: trimmed });
+      } catch { /* best-effort — invite doc may not exist for legacy households */ }
     },
     [getRef],
   );
@@ -240,6 +246,12 @@ export function useHousehold(householdId: string | null) {
 
   const demoteFromAdmin = useCallback(
     async (uid: string) => {
+      // Prevent removing the last admin
+      const admins = dataRef.current?.admins ?? [];
+      if (admins.length <= 1 && admins.includes(uid)) {
+        setError('Cannot remove the last admin. Promote another member first.');
+        return;
+      }
       await updateDoc(getRef(), { admins: arrayRemove(uid) });
     },
     [getRef],
