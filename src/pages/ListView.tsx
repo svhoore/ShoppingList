@@ -264,7 +264,7 @@ export default function ListView() {
                     onToggle={() => handleToggle(item)}
                     onEdit={(text) => editItem(listName, item.id, text)}
                     onDelete={() => deleteItem(listName, item.id)}
-                    onToggleBonus={() => toggleBonus(listName, item.id)}
+                    onToggleBonus={list?.bonusEnabled ? () => toggleBonus(listName, item.id) : undefined}
                     onDragStart={(clientY) => handleDragStart(activeItems.findIndex((a) => a.id === item.id), clientY)}
                     isDragging={isDragging}
                   />
@@ -312,7 +312,7 @@ export default function ListView() {
                     onToggle={() => handleToggle(item)}
                     onEdit={(text) => editItem(listName, item.id, text)}
                     onDelete={() => deleteItem(listName, item.id)}
-                    onToggleBonus={() => toggleBonus(listName, item.id)}
+                    onToggleBonus={list?.bonusEnabled ? () => toggleBonus(listName, item.id) : undefined}
                   />
                 </SwipeableItem>
               ))}

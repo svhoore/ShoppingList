@@ -8,15 +8,14 @@ import IconPicker from '../components/IconPicker';
 import CategoryPicker from '../components/CategoryPicker';
 import SettingsModal from '../components/SettingsModal';
 import HouseholdSwitcher from '../components/HouseholdSwitcher';
-import { IconSwitch, IconShare, IconCheck, IconSettings, IconPlus, IconEdit, IconTrash, IconDragHandle } from '../components/Icons';
-import { shareOrCopy } from '../lib/share';
+import { IconSwitch, IconSettings, IconPlus, IconEdit, IconTrash, IconDragHandle } from '../components/Icons';
 import ActionsTab from '../components/ActionsTab';
 
 export default function Dashboard() {
   const { householdId, userHouseholds, leaveHousehold, switchHousehold, clearHousehold } = useHouseholdContext();
   const { user, signOut } = useAuth();
   const {
-    data, loading, error, addList, deleteList, renameList, setListIcon, setListCategory,
+    data, loading, error, addList, deleteList, renameList, setListIcon, setListCategory, setListBonusEnabled,
     reorderLists, renameHousehold, setHouseholdIcon, promoteToAdmin, demoteFromAdmin, removeMember, addCategory, removeCategory,
     addActionList, deleteActionList, renameActionList, setActionListIcon, setActionListCategory, reorderActionLists,
     addActionCategory, removeActionCategory,
@@ -33,7 +32,7 @@ export default function Dashboard() {
   const [renameValue, setRenameValue] = useState('');
   const [renameIcon, setRenameIcon] = useState('📝');
   const [renameCategory, setRenameCategory] = useState('');
-  const [copied, setCopied] = useState(false);
+  const [renameBonusEnabled, setRenameBonusEnabled] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showSwitcher, setShowSwitcher] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -48,21 +47,6 @@ export default function Dashboard() {
     () => (householdId ? `${window.location.origin}/join/${householdId}` : ''),
     [householdId],
   );
-
-  async function handleShare() {
-    if (!householdId) return;
-    await shareOrCopy(
-      {
-        title: data?.name || 'Our Shopping List',
-        text: `Join my household "${data?.name || 'Our Shopping List'}" on Our Shopping List!`,
-        url: inviteLink,
-      },
-      () => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      },
-    );
-  }
 
   // ---- Drag-and-drop state for list reordering ----
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -194,6 +178,9 @@ export default function Dashboard() {
       if (list && list.category !== renameCategory) {
         await setListCategory(renameValue.trim(), renameCategory);
       }
+      if (list && !!list.bonusEnabled !== renameBonusEnabled) {
+        await setListBonusEnabled(renameValue.trim(), renameBonusEnabled);
+      }
       setRenameTarget(null);
       setRenameValue('');
       setSubmitting(false);
@@ -266,19 +253,6 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
-            {isAdmin && (
-              <button
-                onClick={handleShare}
-                className="text-xs text-ios-blue px-2.5 py-1.5 rounded-lg bg-ios-blue/10 active:bg-ios-blue/20 transition-colors font-medium flex items-center gap-1"
-                title="Share invite link"
-              >
-                {copied ? (
-                  <><IconCheck size={14} strokeWidth={2.5} />Copied!</>
-                ) : (
-                  <><IconShare />Invite</>
-                )}
-              </button>
-            )}
             <button
               onClick={() => setShowSettings(true)}
               className="p-3 rounded-lg text-ios-secondary active:bg-gray-100 transition-colors"
@@ -434,6 +408,7 @@ export default function Dashboard() {
                             setRenameValue(list.listName);
                             setRenameIcon(list.icon || '📝');
                           setRenameCategory(list.category || '');
+                          setRenameBonusEnabled(!!list.bonusEnabled);
                           }}
                           className="p-3 rounded-lg text-ios-secondary active:bg-gray-100 transition-colors"
                           title="Rename"
@@ -572,6 +547,22 @@ export default function Dashboard() {
                 customCategories={data?.customCategories}
                 onAddCategory={addCategory}
               />
+            </div>
+            <div className="mt-3 flex items-center justify-between">
+              <label className="text-sm font-medium text-ios-text">🏷️ Enable Bonus tag</label>
+              <button
+                type="button"
+                onClick={() => setRenameBonusEnabled(!renameBonusEnabled)}
+                className={`relative w-[51px] h-[31px] rounded-full transition-colors duration-200 ${
+                  renameBonusEnabled ? 'bg-ios-green' : 'bg-gray-200'
+                }`}
+              >
+                <span
+                  className={`absolute top-[2px] left-[2px] w-[27px] h-[27px] bg-white rounded-full shadow-md transition-transform duration-200 ${
+                    renameBonusEnabled ? 'translate-x-[20px]' : ''
+                  }`}
+                />
+              </button>
             </div>
             <div className="flex gap-3 mt-4">
               <button

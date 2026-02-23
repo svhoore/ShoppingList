@@ -48,7 +48,7 @@ export default function AllItemsView() {
     return src.map(list => {
       const active = list.items.filter(i => !i.completed);
       const completed = list.items.filter(i => i.completed);
-      return { listName: list.listName, icon: list.icon, category: list.category, active, completed };
+      return { listName: list.listName, icon: list.icon, category: list.category, bonusEnabled: !!list.bonusEnabled, active, completed };
     });
   }, [lists, categoryFilter]);
 
@@ -483,7 +483,7 @@ export default function AllItemsView() {
                                   onToggle={() => handleToggle(group.listName, item)}
                                   onEdit={(text) => editItem(group.listName, item.id, text)}
                                   onDelete={() => deleteItem(group.listName, item.id)}
-                                  onToggleBonus={() => toggleBonus(group.listName, item.id)}
+                                  onToggleBonus={group.bonusEnabled ? () => toggleBonus(group.listName, item.id) : undefined}
                                   onDragStart={(clientY) => handleDragStart(item.id, group.listName, idx, clientY)}
                                   isDragging={isDragging}
                                 />
@@ -509,7 +509,7 @@ export default function AllItemsView() {
                             onToggle={() => handleToggle(group.listName, item)}
                             onEdit={(text) => editItem(group.listName, item.id, text)}
                             onDelete={() => deleteItem(group.listName, item.id)}
-                            onToggleBonus={() => toggleBonus(group.listName, item.id)}
+                            onToggleBonus={group.bonusEnabled ? () => toggleBonus(group.listName, item.id) : undefined}
                           />
                         </SwipeableItem>
                       ))}

@@ -1,73 +1,132 @@
-# React + TypeScript + Vite
+# MyHouseholdMgmt
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A shared household management PWA built with React, TypeScript, and Firebase. Manage shopping lists, action items, and household members — all in real-time.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### Shopping Lists
+- Create multiple shopping lists with custom names, icons, and categories
+- Add, edit, reorder (drag & drop), and delete items
+- Swipe-to-delete on mobile
+- Mark items as completed, with a collapsible completed section
+- **Bonus tag** — optionally enable per list to tag items on sale
+- **All Items** view — see items across all lists, drag items between lists
+- **Inbox** — add items without assigning to a list, then drag them where they belong
 
-## React Compiler
+### Action Lists
+- Create action/to-do lists with priorities (urgent, high, medium, low)
+- Assign actions to household members with due dates
+- Overdue indicators and priority badges
+- **All Actions** view — aggregate view across all action lists
+- **Action Inbox** — quick-capture actions and sort them later
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### Household Management
+- Create and join households via invite link or code
+- Multi-household support — switch between households
+- Role-based access: **Admin** and **Member** roles
+- Admins can rename the household, manage members, promote/demote roles, and share invite links
+- Member list with avatars, names, emails, and role badges
+- Custom household icon (image upload, auto-resized to 128×128)
 
-## Expanding the ESLint configuration
+### Settings
+- iOS-style settings modal with **General**, **Members**, and **Account** tabs
+- Rename household, change icon, manage invite sharing
+- Custom list and action categories
+- Per-list bonus tag toggle
+- Sign out and leave household
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### UX
+- iOS-inspired design with Tailwind CSS
+- Installable PWA with offline support and update prompts
+- Real-time sync across devices via Firestore
+- Drag & drop reordering for lists and items (touch + mouse)
+- Category filters on dashboard and aggregate views
+- Responsive layout optimized for mobile
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Tech Stack
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+| Layer | Technology |
+|-------|-----------|
+| Framework | React 19 + TypeScript |
+| Build | Vite 7 |
+| Styling | Tailwind CSS 4 |
+| Backend | Firebase Firestore + Firebase Auth (Google) |
+| PWA | vite-plugin-pwa (Workbox) |
+| Routing | React Router 7 |
+| Hosting | Vercel |
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Getting Started
+
+```bash
+# Install dependencies
+npm install
+
+# Start dev server
+npm run dev
+
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
+
+# Run tests
+npm test
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Project Structure
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
 ```
+src/
+├── main.tsx                  # Entry point
+├── App.tsx                   # Root component, auth gate, routing
+├── components/               # Reusable UI components
+│   ├── ActionRow.tsx         # Action item with priority/due date
+│   ├── ActionsTab.tsx        # Actions tab on dashboard
+│   ├── CategoryPicker.tsx    # Category selector with add-new
+│   ├── ConfirmDialog.tsx     # Reusable confirmation modal
+│   ├── HouseholdIconPicker   # Household icon upload/picker
+│   ├── HouseholdSwitcher     # Multi-household switcher
+│   ├── IconPicker.tsx        # Emoji icon picker
+│   ├── Icons.tsx             # SVG icon components
+│   ├── ItemRow.tsx           # Shopping item with bonus tag
+│   ├── SettingsModal.tsx     # Settings with tabs (General/Members/Account)
+│   ├── SwipeableItem.tsx     # Swipe-to-delete wrapper
+│   └── UpdatePrompt.tsx      # PWA update notification
+├── context/
+│   ├── AuthContext.tsx        # Firebase Auth provider
+│   └── HouseholdContext.tsx   # Household selection & join/create
+├── hooks/
+│   └── useHousehold.ts        # Core data hook (Firestore CRUD)
+├── lib/
+│   ├── firebase.ts            # Firebase config & initialization
+│   ├── i18n.tsx               # i18n context (EN/NL, in progress)
+│   ├── share.ts               # Web Share API / clipboard fallback
+│   ├── utils.ts               # Utility functions
+│   └── translations/          # Translation dictionaries
+├── pages/
+│   ├── Dashboard.tsx          # Main dashboard with Lists/Actions tabs
+│   ├── JoinScreen.tsx         # Create or join a household
+│   ├── ListView.tsx           # Single shopping list view
+│   ├── ActionsView.tsx        # Single action list view
+│   ├── AllItemsView.tsx       # Aggregate items across all lists
+│   └── AllActionsView.tsx     # Aggregate actions across all lists
+└── __tests__/                 # Unit tests
+```
+
+## Environment Variables
+
+Create a `.env` file with your Firebase project config:
+
+```env
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=...
+VITE_FIREBASE_PROJECT_ID=...
+VITE_FIREBASE_STORAGE_BUCKET=...
+VITE_FIREBASE_MESSAGING_SENDER_ID=...
+VITE_FIREBASE_APP_ID=...
+```
+
+## License
+
+Private project.

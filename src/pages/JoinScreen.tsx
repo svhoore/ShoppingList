@@ -54,9 +54,9 @@ export default function JoinScreen() {
           <div className="w-20 h-20 bg-ios-blue rounded-[22px] flex items-center justify-center mx-auto mb-4 shadow-lg">
             <IconShoppingBag className="text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-ios-text">Our Shopping List</h1>
+          <h1 className="text-2xl font-bold text-ios-text">MyHouseholdMgmt</h1>
           <p className="text-ios-secondary text-sm mt-1">
-            Share a shopping list with your household
+            Manage your household together
           </p>
         </div>
 

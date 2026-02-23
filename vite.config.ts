@@ -21,9 +21,9 @@ export default defineConfig({
       registerType: 'prompt',
       includeAssets: ['apple-touch-icon.svg', 'icon-192.svg', 'icon-512.svg'],
       manifest: {
-        name: 'Our Shopping List',
-        short_name: 'Shopping List',
-        description: 'A shared household shopping list PWA',
+        name: 'MyHouseholdMgmt',
+        short_name: 'MyHouseholdMgmt',
+        description: 'A shared household management PWA',
         theme_color: '#FFFFFF',
         background_color: '#F2F2F7',
         display: 'standalone',

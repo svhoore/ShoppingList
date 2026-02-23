@@ -29,6 +29,7 @@ export interface ShoppingList {
   listName: string;
   icon: string;
   category: string;
+  bonusEnabled?: boolean;
   items: ShoppingItem[];
 }
 
@@ -453,6 +454,16 @@ export function useHousehold(householdId: string | null) {
         'Failed to set category',
         category ? { customCategories: arrayUnion(category) } : undefined,
       ),
+    [updateLists],
+  );
+
+  const setListBonusEnabled = useCallback(
+    (listName: string, enabled: boolean) =>
+      updateLists((lists) => {
+        const list = lists.find((l) => l.listName === listName);
+        if (!list) return false;
+        list.bonusEnabled = enabled;
+      }, 'Failed to update bonus setting'),
     [updateLists],
   );
 
@@ -953,6 +964,7 @@ export function useHousehold(householdId: string | null) {
     addActionCategory,
     removeActionCategory,
     toggleBonus,
+    setListBonusEnabled,
     reorderLists,
     reorderItems,
     moveItem,
