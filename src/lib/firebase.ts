@@ -5,6 +5,7 @@ import {
   persistentMultipleTabManager,
 } from 'firebase/firestore';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -26,5 +27,6 @@ const db = initializeFirestore(app, {
 
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
+const storage = getStorage(app);
 
-export { db, auth, googleProvider };
+export { db, auth, googleProvider, storage };

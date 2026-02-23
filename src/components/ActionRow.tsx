@@ -111,8 +111,14 @@ export default function ActionRow({ action, memberInfo, onToggle, onEdit, onDele
           }`}>
             {action.text}
           </span>
-          {!action.completed && (dueInfo || assigneeEntries.length > 0) && (
+          {!action.completed && action.description && (
+            <p className="text-[12px] text-ios-secondary/70 truncate mt-0.5 leading-snug">{action.description}</p>
+          )}
+          {!action.completed && (dueInfo || assigneeEntries.length > 0 || action.imageUrl) && (
             <div className="flex items-center gap-2 mt-0.5">
+              {action.imageUrl && (
+                <span className="text-[11px] text-ios-secondary">📷</span>
+              )}
               {dueInfo && (
                 <span className={`text-[11px] ${dueInfo.className}`}>
                   {dueInfo.text}

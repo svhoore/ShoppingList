@@ -6,6 +6,7 @@ import type { MemberInfo } from '../context/HouseholdContext';
 import SwipeableItem from '../components/SwipeableItem';
 import ConfirmDialog from '../components/ConfirmDialog';
 import ListFormModal from '../components/ListFormModal';
+import ActionFormModal from '../components/ActionFormModal';
 import ActionRow from '../components/ActionRow';
 import { IconHome, IconMoreVertical, IconEye, IconEyeOff, IconEdit, IconTrash, IconPlus } from '../components/Icons';
 import ErrorToast from '../components/ErrorToast';
@@ -17,13 +18,6 @@ const PRIORITY_FILTERS: { value: ActionPriority | null; label: string }[] = [
   { value: 'high', label: 'High' },
   { value: 'medium', label: 'Medium' },
   { value: 'low', label: 'Low' },
-];
-
-const PRIORITY_OPTIONS: { value: ActionPriority; label: string; activeClass: string }[] = [
-  { value: 'low', label: 'Low', activeClass: 'bg-gray-200 text-ios-text' },
-  { value: 'medium', label: 'Medium', activeClass: 'bg-ios-blue/15 text-ios-blue' },
-  { value: 'high', label: 'High', activeClass: 'bg-orange-100 text-orange-600' },
-  { value: 'urgent', label: 'Urgent', activeClass: 'bg-red-100 text-ios-red' },
 ];
 
 /** Inline quick-add row used in multiple places within ActionsView */
@@ -88,6 +82,8 @@ export default function ActionsView() {
 
   // Form state
   const [formText, setFormText] = useState('');
+  const [formDescription, setFormDescription] = useState('');
+  const [formImageUrl, setFormImageUrl] = useState('');
   const [formAssignees, setFormAssignees] = useState<string[]>([]);
   const [formDueDate, setFormDueDate] = useState('');
   const [formPriority, setFormPriority] = useState<ActionPriority>('medium');
@@ -154,6 +150,8 @@ export default function ActionsView() {
   // ---- Full add modal ----
   function openAdd() {
     setFormText('');
+    setFormDescription('');
+    setFormImageUrl('');
     setFormAssignees([]);
     setFormDueDate('');
     setFormPriority('medium');
@@ -162,6 +160,8 @@ export default function ActionsView() {
 
   function openEdit(action: ActionItem) {
     setFormText(action.text);
+    setFormDescription(action.description || '');
+    setFormImageUrl(action.imageUrl || '');
     setFormAssignees([...action.assignees]);
     setFormDueDate(action.dueDate || '');
     setFormPriority(action.priority);
@@ -178,7 +178,7 @@ export default function ActionsView() {
     e.preventDefault();
     if (!formText.trim() || submitting) return;
     setSubmitting(true);
-    await addAction(listName, formText.trim(), formAssignees, formDueDate || null, formPriority);
+    await addAction(listName, formText.trim(), formAssignees, formDueDate || null, formPriority, formDescription, formImageUrl);
     setShowAdd(false);
     setSubmitting(false);
   }
@@ -189,6 +189,8 @@ export default function ActionsView() {
     setSubmitting(true);
     await editAction(listName, editTarget.id, {
       text: formText.trim(),
+      description: formDescription,
+      imageUrl: formImageUrl,
       assignees: formAssignees,
       dueDate: formDueDate || null,
       priority: formPriority,
@@ -443,6 +445,10 @@ export default function ActionsView() {
         <ActionFormModal
           formText={formText}
           setFormText={setFormText}
+          formDescription={formDescription}
+          setFormDescription={setFormDescription}
+          formImageUrl={formImageUrl}
+          setFormImageUrl={setFormImageUrl}
           formAssignees={formAssignees}
           toggleAssignee={toggleAssignee}
           formDueDate={formDueDate}
@@ -451,6 +457,7 @@ export default function ActionsView() {
           setFormPriority={setFormPriority}
           members={members}
           submitting={submitting}
+          householdId={householdId!}
           title="New Action"
           submitLabel="Create"
           onSubmit={handleAdd}
@@ -463,6 +470,10 @@ export default function ActionsView() {
         <ActionFormModal
           formText={formText}
           setFormText={setFormText}
+          formDescription={formDescription}
+          setFormDescription={setFormDescription}
+          formImageUrl={formImageUrl}
+          setFormImageUrl={setFormImageUrl}
           formAssignees={formAssignees}
           toggleAssignee={toggleAssignee}
           formDueDate={formDueDate}
@@ -471,6 +482,7 @@ export default function ActionsView() {
           setFormPriority={setFormPriority}
           members={members}
           submitting={submitting}
+          householdId={householdId!}
           title="Edit Action"
           submitLabel="Save"
           onSubmit={handleEditSave}
@@ -508,130 +520,6 @@ export default function ActionsView() {
       />
 
       <ErrorToast error={error} />
-    </div>
-  );
-}
-
-// ---- Reusable form modal ----
-
-function ActionFormModal({
-  title, formText, setFormText, formAssignees, toggleAssignee, formDueDate, setFormDueDate,
-  formPriority, setFormPriority, members, submitting, submitLabel, onSubmit, onClose,
-}: {
-  title: string;
-  formText: string;
-  setFormText: (v: string) => void;
-  formAssignees: string[];
-  toggleAssignee: (uid: string) => void;
-  formDueDate: string;
-  setFormDueDate: (v: string) => void;
-  formPriority: ActionPriority;
-  setFormPriority: (v: ActionPriority) => void;
-  members: { uid: string; info: MemberInfo }[];
-  submitting: boolean;
-  submitLabel: string;
-  onSubmit: (e: FormEvent) => void;
-  onClose: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <form
-        onSubmit={onSubmit}
-        className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl max-h-[85vh] overflow-y-auto"
-      >
-        <h3 className="text-lg font-semibold text-ios-text mb-3">{title}</h3>
-
-        <input
-          type="text"
-          value={formText}
-          onChange={(e) => setFormText(e.target.value)}
-          placeholder="What needs to be done?"
-          autoFocus
-          maxLength={200}
-          className="w-full px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[16px] placeholder:text-ios-secondary/50 focus:outline-none focus:ring-2 focus:ring-ios-blue/30"
-        />
-
-        {/* Priority */}
-        <div className="mt-4">
-          <label className="block text-xs font-medium text-ios-secondary uppercase tracking-wide mb-2">Priority</label>
-          <div className="flex gap-2">
-            {PRIORITY_OPTIONS.map(p => (
-              <button
-                key={p.value}
-                type="button"
-                onClick={() => setFormPriority(p.value)}
-                className={`flex-1 py-2 rounded-xl text-[13px] font-semibold transition-all ${
-                  formPriority === p.value ? p.activeClass : 'bg-ios-bg text-ios-secondary'
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Assignees */}
-        <div className="mt-4">
-          <label className="block text-xs font-medium text-ios-secondary uppercase tracking-wide mb-2">Assign to</label>
-          <div className="flex flex-wrap gap-2">
-            {members.map(m => (
-              <button
-                key={m.uid}
-                type="button"
-                onClick={() => toggleAssignee(m.uid)}
-                className={`px-3 py-1.5 rounded-lg text-[13px] font-medium transition-all ${
-                  formAssignees.includes(m.uid)
-                    ? 'bg-ios-blue text-white'
-                    : 'bg-ios-bg text-ios-secondary active:bg-gray-200'
-                }`}
-              >
-                {m.info.displayName.split(' ')[0]}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Due date */}
-        <div className="mt-4">
-          <label className="block text-xs font-medium text-ios-secondary uppercase tracking-wide mb-2">Due date</label>
-          <div className="flex gap-2">
-            <input
-              type="date"
-              value={formDueDate}
-              onChange={(e) => setFormDueDate(e.target.value)}
-              className="flex-1 px-4 py-3 bg-ios-bg rounded-xl text-ios-text text-[16px] focus:outline-none focus:ring-2 focus:ring-ios-blue/30"
-            />
-            {formDueDate && (
-              <button
-                type="button"
-                onClick={() => setFormDueDate('')}
-                className="px-3 py-3 bg-ios-bg rounded-xl text-ios-secondary active:bg-gray-200 text-[13px]"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Buttons */}
-        <div className="flex gap-3 mt-5">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 py-2.5 rounded-xl text-ios-blue font-medium bg-ios-bg active:bg-gray-200 transition-all active:scale-[0.98]"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={!formText.trim() || submitting}
-            className="flex-1 py-2.5 rounded-xl bg-ios-blue text-white font-semibold disabled:opacity-40 active:scale-[0.98] transition-transform"
-          >
-            {submitting ? 'Saving…' : submitLabel}
-          </button>
-        </div>
-      </form>
     </div>
   );
 }

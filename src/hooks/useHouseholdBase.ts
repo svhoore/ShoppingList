@@ -31,6 +31,8 @@ export type ActionPriority = 'low' | 'medium' | 'high' | 'urgent';
 export interface ActionItem {
   id: string;
   text: string;
+  description?: string;
+  imageUrl?: string;
   completed: boolean;
   assignees: string[];
   dueDate: string | null;

@@ -76,17 +76,19 @@ export function createActionOps(ctx: HouseholdBaseContext) {
 
   // ---- Action item CRUD ----
 
-  const addAction = (listName: string, text: string, assignees: string[], dueDate: string | null, priority: ActionPriority) =>
+  const addAction = (listName: string, text: string, assignees: string[], dueDate: string | null, priority: ActionPriority, description?: string, imageUrl?: string) =>
     updateActionLists((als) => {
       const al = als.find((a) => a.listName === listName);
       if (!al) return false;
       al.items.push({
         id: uuidv4(), text: text.trim(), completed: false,
         assignees, dueDate, priority, createdAt: Date.now(),
+        ...(description?.trim() ? { description: description.trim() } : {}),
+        ...(imageUrl ? { imageUrl } : {}),
       });
     }, 'Failed to add action');
 
-  const editAction = (listName: string, actionId: string, updates: Partial<Pick<ActionItem, 'text' | 'assignees' | 'dueDate' | 'priority'>>) =>
+  const editAction = (listName: string, actionId: string, updates: Partial<Pick<ActionItem, 'text' | 'description' | 'imageUrl' | 'assignees' | 'dueDate' | 'priority'>>) =>
     updateActionLists((als) => {
       const al = als.find((a) => a.listName === listName);
       if (!al) return false;
@@ -96,6 +98,13 @@ export function createActionOps(ctx: HouseholdBaseContext) {
         const trimmed = updates.text.trim();
         if (!trimmed) return false;
         action.text = trimmed;
+      }
+      if (updates.description !== undefined) {
+        const desc = updates.description.trim();
+        if (desc) action.description = desc; else delete action.description;
+      }
+      if (updates.imageUrl !== undefined) {
+        if (updates.imageUrl) action.imageUrl = updates.imageUrl; else delete action.imageUrl;
       }
       if (updates.assignees !== undefined) action.assignees = updates.assignees;
       if (updates.dueDate !== undefined) action.dueDate = updates.dueDate;
