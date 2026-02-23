@@ -2,14 +2,30 @@ import { useState } from 'react';
 
 const ICONS = [
   // Shopping & Food
-  '🛒', '🛍️', '🧺', '🥑', '🍎', '🥦', '🍞', '🥛',
-  '🧀', '🍕', '🍔', '☕', '🍷', '🍺', '🧃', '🍰',
-  // Household
+  '🛒', '🛍️', '🧺', '🥑', '🍎', '🍊', '🍋', '🍌',
+  '🍇', '🍓', '🫐', '🍑', '🥦', '🥕', '🌽', '🥬',
+  '🍞', '🥛', '🧀', '🥚', '🍕', '🍔', '🌮', '🍣',
+  '🍗', '🥩', '🐟', '🍝', '☕', '🍷', '🍺', '🧃',
+  '🍰', '🍫', '🍪', '🧁',
+  // Household & Garden
   '🏠', '🧹', '🧼', '🧽', '💡', '🔧', '🪴', '🛁',
-  // Health & Pets
-  '💊', '🩹', '🐶', '🐱', '🐾',
+  '🪣', '🧴', '🛋️', '🛏️', '🪑', '🚿', '🗑️', '🌿',
+  '🌸', '🌻', '🌳', '🪻',
+  // Health & Beauty
+  '💊', '🩹', '💉', '🩺', '🧴', '💅', '🪥', '🧻',
+  // Pets & Animals
+  '🐶', '🐱', '🐾', '🐰', '🐠', '🦜', '🐢',
+  // Kids & Baby
+  '👶', '🍼', '🧸', '🎒', '🖍️',
+  // Car & Transport
+  '🚗', '⛽', '🔋', '🛞',
+  // Work & Office
+  '💼', '📝', '📋', '📎', '📦', '🗂️', '💻', '🖨️',
+  // Sports & Outdoors
+  '⚽', '🏋️', '🚴', '🏕️', '🎣', '🏊',
   // General
-  '📝', '📋', '⭐', '❤️', '💎', '🎁', '🎯', '🔥',
+  '⭐', '❤️', '💎', '🎁', '🎯', '🔥', '🎉', '✅',
+  '📌', '🔔', '💰', '🏷️',
 ];
 
 interface IconPickerProps {
@@ -34,7 +50,7 @@ export default function IconPicker({ value, onChange }: IconPickerProps) {
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-full mt-2 z-50 bg-white rounded-2xl shadow-xl border border-gray-200/80 p-3 w-72">
+          <div className="absolute left-0 top-full mt-2 z-50 bg-white rounded-2xl shadow-xl border border-gray-200/80 p-3 w-72 max-h-72 overflow-y-auto">
             <p className="text-xs font-medium text-ios-secondary mb-2 px-1">Choose an icon</p>
             <div className="grid grid-cols-8 gap-1">
               {ICONS.map((icon) => (
