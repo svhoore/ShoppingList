@@ -12,6 +12,7 @@
     }
   ],
   "rewrites": [
+    { "source": "/__/:path*", "destination": "https://shopping-lists-52516.firebaseapp.com/__/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
