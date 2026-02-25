@@ -31,13 +31,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Handle redirect result (for iOS/mobile sign-in)
-    getRedirectResult(auth).catch((err) => {
-      const code = (err as { code?: string })?.code;
-      if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
-        setAuthError('Sign-in failed. Please try again.');
-        console.error('Redirect sign-in error:', err);
-      }
-    });
+    getRedirectResult(auth)
+      .then((result) => {
+        // After successful redirect sign-in, clean up the URL
+        if (result?.user && window.location.pathname.startsWith('/__/')) {
+          window.location.replace('/');
+        }
+      })
+      .catch((err) => {
+        const code = (err as { code?: string })?.code;
+        if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
+          setAuthError('Sign-in failed. Please try again.');
+          console.error('Redirect sign-in error:', err);
+        }
+      });
 
     const unsub = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
