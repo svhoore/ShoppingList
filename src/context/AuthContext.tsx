@@ -7,8 +7,7 @@ import {
 } from 'react';
 import {
   onAuthStateChanged,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
   signOut as firebaseSignOut,
   type User,
 } from 'firebase/auth';
@@ -30,22 +29,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Handle redirect result (for iOS/mobile sign-in)
-    getRedirectResult(auth)
-      .then((result) => {
-        // After successful redirect sign-in, clean up the URL
-        if (result?.user && window.location.pathname.startsWith('/__/')) {
-          window.location.replace('/');
-        }
-      })
-      .catch((err) => {
-        const code = (err as { code?: string })?.code;
-        if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
-          setAuthError('Sign-in failed. Please try again.');
-          console.error('Redirect sign-in error:', err);
-        }
-      });
-
     const unsub = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
       setLoading(false);
@@ -56,11 +39,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function signInWithGoogle() {
     try {
       setAuthError(null);
-      await signInWithRedirect(auth, googleProvider);
+      await signInWithPopup(auth, googleProvider);
     } catch (err: unknown) {
       const code = (err as { code?: string })?.code;
       if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return;
-      setAuthError('Sign-in failed. Please try again.');
+      if (code === 'auth/popup-blocked') {
+        setAuthError('Pop-up was blocked. Please allow pop-ups for this site.');
+      } else {
+        setAuthError('Sign-in failed. Please try again.');
+      }
       console.error('Sign-in error:', err);
     }
   }
