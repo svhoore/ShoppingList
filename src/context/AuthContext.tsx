@@ -25,6 +25,8 @@ const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 // Desktop         → popup
 const useRedirect = isMobile && !isStandalone;
 
+console.log('[Auth Debug]', { isStandalone, isMobile, useRedirect, ua: navigator.userAgent });
+
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
@@ -42,13 +44,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Handle redirect result (for iOS/mobile sign-in)
-    getRedirectResult(auth).catch((err) => {
-      const code = (err as { code?: string })?.code;
-      if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
-        setAuthError('Sign-in failed. Please try again.');
-        console.error('Redirect sign-in error:', err);
-      }
-    });
+    getRedirectResult(auth)
+      .then((result) => {
+        console.log('[Auth Debug] getRedirectResult:', result);
+      })
+      .catch((err) => {
+        const code = (err as { code?: string })?.code;
+        const message = (err as { message?: string })?.message;
+        console.error('[Auth Debug] Redirect error:', { code, message, err });
+        if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
+          setAuthError(`[DEBUG] ${code || 'unknown'}: ${message || String(err)}`);
+        }
+      });
 
     const unsub = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
@@ -60,21 +67,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function signInWithGoogle() {
     try {
       setAuthError(null);
+      const method = useRedirect ? 'redirect' : 'popup';
+      console.log('[Auth Debug] signInWithGoogle using:', method);
       if (useRedirect) {
         await signInWithRedirect(auth, googleProvider);
       } else {
         await signInWithPopup(auth, googleProvider);
       }
+      console.log('[Auth Debug] signIn resolved successfully');
     } catch (err: unknown) {
       const code = (err as { code?: string })?.code;
+      const message = (err as { message?: string })?.message;
+      console.error('[Auth Debug] signIn error:', { code, message, err });
       // User cancelled — not an error
       if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return;
-      if (code === 'auth/popup-blocked') {
-        setAuthError('Pop-up was blocked. Please allow pop-ups for this site.');
-      } else {
-        setAuthError('Sign-in failed. Please try again.');
-      }
-      console.error('Sign-in error:', err);
+      setAuthError(`[DEBUG] ${code || 'unknown'}: ${message || String(err)}`);
     }
   }
 
