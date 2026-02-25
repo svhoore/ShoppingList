@@ -15,7 +15,15 @@ import {
 } from 'firebase/auth';
 import { auth, googleProvider } from '../lib/firebase';
 
+const isStandalone =
+  window.matchMedia('(display-mode: standalone)').matches ||
+  (navigator as unknown as { standalone?: boolean }).standalone === true;
 const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+// Standalone PWA → popup (redirect leaves the app and never comes back)
+// Mobile browser  → redirect (popup is blocked by Safari/Chrome)
+// Desktop         → popup
+const useRedirect = isMobile && !isStandalone;
 
 interface AuthContextValue {
   user: User | null;
@@ -52,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function signInWithGoogle() {
     try {
       setAuthError(null);
-      if (isMobile) {
+      if (useRedirect) {
         await signInWithRedirect(auth, googleProvider);
       } else {
         await signInWithPopup(auth, googleProvider);
