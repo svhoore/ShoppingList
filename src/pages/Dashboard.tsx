@@ -496,6 +496,8 @@ export default function Dashboard() {
         />
       )}
 
+      <p className="text-center text-[11px] text-ios-secondary/50 py-4">v{__APP_VERSION__}</p>
+
       <ErrorToast error={error} />
     </div>
   );
