@@ -50,7 +50,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        // Note: Firestore SDK uses WebChannel, not REST — no runtimeCaching needed.
+        // Don't let the service worker intercept Firebase auth handler routes
+        navigateFallbackDenylist: [/^\/__\/auth/],
       },
     }),
   ],
