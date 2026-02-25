@@ -230,7 +230,7 @@ export default function ListView() {
               onChange={(e) => setNewItemText(e.target.value)}
               onKeyDown={handleAddKeyDown}
               placeholder="Add an item…"
-              enterKeyHint="done"
+              enterKeyHint="send"
               maxLength={200}
               className="flex-1 text-[15px] text-ios-text placeholder:text-ios-secondary/40 bg-transparent focus:outline-none py-0.5"
             />
