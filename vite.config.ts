@@ -51,7 +51,7 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         // Don't let the service worker intercept Firebase auth handler routes
-        navigateFallbackDenylist: [/^\/__\/auth/],
+        navigateFallbackDenylist: [/^\/__\//],
       },
     }),
   ],
