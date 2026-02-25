@@ -18,6 +18,11 @@ import { auth, googleProvider } from '../lib/firebase';
 const isStandalone =
   window.matchMedia('(display-mode: standalone)').matches ||
   (navigator as unknown as { standalone?: boolean }).standalone === true;
+const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+// Only iOS standalone needs redirect (popups open Safari and can't return).
+// Android standalone supports popups via Chrome Custom Tabs.
+const useRedirect = isStandalone && isIOS;
 
 interface AuthContextValue {
   user: User | null;
@@ -35,8 +40,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Handle redirect result (standalone PWA uses signInWithRedirect)
-    if (isStandalone) {
+    // Handle redirect result (iOS standalone PWA uses signInWithRedirect)
+    if (useRedirect) {
       getRedirectResult(auth)
         .then((result) => {
           if (result?.user && window.location.pathname.startsWith('/__/')) {
@@ -62,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function signInWithGoogle() {
     try {
       setAuthError(null);
-      if (isStandalone) {
+      if (useRedirect) {
         await signInWithRedirect(auth, googleProvider);
       } else {
         await signInWithPopup(auth, googleProvider);

@@ -11,10 +11,15 @@ const isStandalone =
   typeof window !== 'undefined' &&
   (window.matchMedia('(display-mode: standalone)').matches ||
     (navigator as unknown as { standalone?: boolean }).standalone === true);
+const isIOS =
+  typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+// Only override authDomain for iOS standalone PWA (redirect flow needs same-origin)
+const useCustomAuthDomain = isStandalone && isIOS;
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: isStandalone
+  authDomain: useCustomAuthDomain
     ? 'shoppinglists-three.vercel.app'
     : import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
